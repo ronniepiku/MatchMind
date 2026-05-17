@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #333; line-height: 1.6; }
+        h1 { color: #b71c1c; border-bottom: 3px solid #b71c1c; padding-bottom: 10px; }
+        h2 { color: #c62828; margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background-color: #b71c1c; color: white; }
+        tr:nth-child(even) { background-color: #fce4ec; }
+        .meta { color: #666; font-size: 0.9em; }
+        .warning { background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 12px; margin: 10px 0; }
+        .danger { background-color: #ffebee; border-left: 4px solid #f44336; padding: 12px; margin: 10px 0; }
+        .section { margin: 25px 0; }
+        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 10px; color: #999; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <div class="meta">
+        <p>Team ID: {{ team_id }} | Season: {{ season_id }} | Generated: {{ generated_at }}</p>
+    </div>
+
+    <h2>Attack Patterns</h2>
+    <div class="section">
+        <p>How the opponent builds and finishes attacks, broken down by play pattern.</p>
+        {% if attack_patterns %}
+        <table>
+            <tr><th>Pattern</th><th>Possessions</th><th>Shots</th><th>Avg xG/Shot</th><th>Total xG</th><th>Goals</th></tr>
+            {% for row in attack_patterns %}
+            <tr>
+                <td>{{ row.play_pattern }}</td>
+                <td>{{ row.possessions }}</td>
+                <td>{{ row.shots }}</td>
+                <td>{{ row.avg_xg if row.avg_xg else '-' }}</td>
+                <td>{{ row.total_xg if row.total_xg else '-' }}</td>
+                <td>{{ row.goals }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No attack pattern data available.</p>
+        {% endif %}
+    </div>
+
+    <h2>Defensive Shape</h2>
+    <div class="section">
+        <p>Opponent's defensive actions by pitch zone — reveals pressing style and vulnerability areas.</p>
+        {% if defensive_shape %}
+        <table>
+            <tr><th>Zone</th><th>Pressures</th><th>Tackles</th><th>Interceptions</th><th>Blocks</th><th>Avg Def. X</th></tr>
+            {% for row in defensive_shape %}
+            <tr>
+                <td>{{ row.zone }}</td>
+                <td>{{ row.pressures }}</td>
+                <td>{{ row.tackles }}</td>
+                <td>{{ row.interceptions }}</td>
+                <td>{{ row.blocks }}</td>
+                <td>{{ row.avg_defensive_x if row.avg_defensive_x else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No defensive shape data available.</p>
+        {% endif %}
+    </div>
+
+    <h2>Key Players (Threats)</h2>
+    <div class="section">
+        <div class="danger">
+            <strong>Priority marking targets</strong> — ranked by combined goal threat (xG + xA).
+        </div>
+        {% if key_players %}
+        <table>
+            <tr><th>Player</th><th>Matches</th><th>xG</th><th>xA</th><th>xG+xA</th><th>Shots</th><th>Key Passes</th><th>Dribbles</th></tr>
+            {% for row in key_players %}
+            <tr>
+                <td><strong>{{ row.player_name }}</strong></td>
+                <td>{{ row.matches }}</td>
+                <td>{{ "%.2f"|format(row.total_xg or 0) }}</td>
+                <td>{{ "%.2f"|format(row.total_xa or 0) }}</td>
+                <td>{{ "%.2f"|format(row.xg_plus_xa or 0) }}</td>
+                <td>{{ row.shots }}</td>
+                <td>{{ row.key_passes }}</td>
+                <td>{{ row.dribbles }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No key player data available.</p>
+        {% endif %}
+    </div>
+
+    <h2>Tactical Recommendations</h2>
+    <div class="warning">
+        <p><strong>Based on data analysis — to be validated by coaching staff:</strong></p>
+        <ul>
+            <li>Monitor key player threat levels and assign marking responsibilities</li>
+            <li>Exploit identified defensive vulnerabilities in weak zones</li>
+            <li>Prepare for dominant attack patterns with defensive drills</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p>Generated: {{ generated_at }} | Football Analytics Platform | Confidential</p>
+    </div>
+</body>
+</html>

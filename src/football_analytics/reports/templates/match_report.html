@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #333; line-height: 1.6; }
+        h1 { color: #1a237e; border-bottom: 3px solid #1a237e; padding-bottom: 10px; }
+        h2 { color: #283593; margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background-color: #1a237e; color: white; }
+        tr:nth-child(even) { background-color: #f5f5f5; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .score { font-size: 2em; font-weight: bold; color: #1a237e; text-align: center; }
+        .meta { color: #666; font-size: 0.9em; }
+        .chart-container { text-align: center; margin: 20px 0; }
+        .chart-container img { max-width: 100%; height: auto; }
+        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 10px; color: #999; font-size: 0.8em; }
+        .highlight { background-color: #e8eaf6; padding: 15px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <div class="meta">
+        <p>Match ID: {{ match_id }} | Date: {{ match_date }}</p>
+    </div>
+
+    <div class="score">
+        {{ home_score }} - {{ away_score }}
+    </div>
+
+    <h2>Team Statistics</h2>
+    {% if team_stats %}
+    <table>
+        <tr>
+            <th>Metric</th>
+            {% for team in team_stats %}
+            <th>{{ team.team_name }}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Passes Completed</td>
+            {% for team in team_stats %}<td>{{ team.passes_completed }}</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Pass Accuracy</td>
+            {% for team in team_stats %}<td>{{ "%.1f"|format(team.pass_accuracy * 100 if team.pass_accuracy else 0) }}%</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Shots</td>
+            {% for team in team_stats %}<td>{{ team.shots }}</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Total xG</td>
+            {% for team in team_stats %}<td>{{ "%.2f"|format(team.total_xg or 0) }}</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Goals</td>
+            {% for team in team_stats %}<td>{{ team.goals }}</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Pressures</td>
+            {% for team in team_stats %}<td>{{ team.pressures }}</td>{% endfor %}
+        </tr>
+        <tr>
+            <td>Possessions</td>
+            {% for team in team_stats %}<td>{{ team.possessions }}</td>{% endfor %}
+        </tr>
+    </table>
+    {% else %}
+    <p>No team statistics available.</p>
+    {% endif %}
+
+    {% if shot_map_img %}
+    <h2>Shot Map</h2>
+    <div class="chart-container">
+        <img src="{{ shot_map_img }}" alt="Shot Map">
+    </div>
+    {% endif %}
+
+    <h2>Shot Summary</h2>
+    {% if shots_summary %}
+    <table>
+        <tr><th>Team</th><th>Shots</th><th>xG</th><th>Goals</th><th>xG/Shot</th></tr>
+        {% for s in shots_summary %}
+        <tr>
+            <td>{{ s.team_id }}</td>
+            <td>{{ s.shots }}</td>
+            <td>{{ "%.2f"|format(s.xg or 0) }}</td>
+            <td>{{ s.goals }}</td>
+            <td>{{ "%.3f"|format((s.xg or 0) / s.shots if s.shots > 0 else 0) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    <div class="footer">
+        <p>Generated: {{ generated_at }} | Football Analytics Platform</p>
+    </div>
+</body>
+</html>
