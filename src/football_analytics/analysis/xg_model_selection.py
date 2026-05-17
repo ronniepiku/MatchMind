@@ -858,7 +858,6 @@ def compute_calibration_curves(
     Returns:
         Dict of model_name → (true_probs, predicted_probs) arrays.
     """
-    from sklearn.calibration import calibration_curve
 
     curves = {}
     # Get actual outcomes
@@ -936,8 +935,8 @@ def generate_model_report(results: BenchmarkResults) -> str:
         "-" * 65,
         f"  * Production (best accuracy): {best.name}",
         f"  * Real-time API (speed+accuracy): {fastest.name if fastest.metrics.roc_auc > 0.75 else 'HistGradientBoosting'}",
-        f"  * Interpretability: LogisticRegression",
-        f"  * Maximum accuracy: StackingEnsemble",
+        "  * Interpretability: LogisticRegression",
+        "  * Maximum accuracy: StackingEnsemble",
         "",
     ])
 

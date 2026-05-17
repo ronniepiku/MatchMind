@@ -13,7 +13,6 @@ import plotly.graph_objects as go
 from matplotlib.figure import Figure
 from mplsoccer import Pitch, VerticalPitch
 
-
 # =============================================================================
 # STATIC VISUALISATIONS (Matplotlib / mplsoccer)
 # =============================================================================

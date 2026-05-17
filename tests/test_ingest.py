@@ -6,11 +6,10 @@ import pandas as pd
 import pytest
 
 from football_analytics.ingest import (
+    _extract_players_from_events,
     normalize_events,
     normalize_lineups,
-    _extract_players_from_events,
 )
-
 
 # =============================================================================
 # FIXTURES

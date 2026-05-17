@@ -31,8 +31,8 @@ def get_opponent_attack_patterns(
             e.play_pattern,
             COUNT(DISTINCT e.possession) AS possessions,
             COUNT(*) FILTER (WHERE e.event_type = 'Shot') AS shots,
-            ROUND(AVG(e.xg) FILTER (WHERE e.event_type = 'Shot'), 3) AS avg_xg,
-            ROUND(SUM(e.xg) FILTER (WHERE e.event_type = 'Shot'), 2) AS total_xg,
+            ROUND((AVG(e.xg) FILTER (WHERE e.event_type = 'Shot'))::NUMERIC, 3) AS avg_xg,
+            ROUND((SUM(e.xg) FILTER (WHERE e.event_type = 'Shot'))::NUMERIC, 2) AS total_xg,
             COUNT(*) FILTER (WHERE e.shot_outcome = 'Goal') AS goals
         FROM events e
         JOIN matches m ON e.match_id = m.match_id
@@ -66,7 +66,7 @@ def get_opponent_defensive_shape(
             COUNT(*) FILTER (WHERE e.event_type = 'Tackle') AS tackles,
             COUNT(*) FILTER (WHERE e.event_type = 'Interception') AS interceptions,
             COUNT(*) FILTER (WHERE e.event_type = 'Block') AS blocks,
-            ROUND(AVG(e.location_x) FILTER (WHERE e.event_type IN ('Tackle', 'Interception')), 1) AS avg_defensive_x
+            ROUND((AVG(e.location_x) FILTER (WHERE e.event_type IN ('Tackle', 'Interception')))::NUMERIC, 1) AS avg_defensive_x
         FROM events e
         JOIN matches m ON e.match_id = m.match_id
         WHERE e.team_id = :team_id

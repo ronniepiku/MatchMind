@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ============================================================================
 # Possession Chain Tests
 # ============================================================================
@@ -527,6 +526,7 @@ class TestAPI:
     @pytest.fixture
     def client(self):
         from fastapi.testclient import TestClient
+
         from football_analytics.api import app
         return TestClient(app)
 

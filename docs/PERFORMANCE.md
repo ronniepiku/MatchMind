@@ -2,7 +2,7 @@
 
 ## Profiling Results & Bottlenecks
 
-### 1. Data Ingestion (Critical Path)
+### 1. Data Ingestion 
 
 | Step | Time (Before) | Time (After) | Optimisation | Improvement |
 |------|--------------|-------------|--------------|-------------|

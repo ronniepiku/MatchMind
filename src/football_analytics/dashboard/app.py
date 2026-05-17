@@ -13,21 +13,15 @@ from __future__ import annotations
 
 import dash
 import dash_bootstrap_components as dbc
-import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
-from sqlalchemy import text
 
 from football_analytics.analysis.opponent_profile import build_opponent_report
 from football_analytics.analysis.player_performance import (
     get_player_rolling_form,
     get_player_season_summary,
     get_squad_comparison,
-)
-from football_analytics.analysis.visualisations import (
-    plot_player_radar,
-    plot_xg_timeline,
 )
 from football_analytics.db import get_engine
 

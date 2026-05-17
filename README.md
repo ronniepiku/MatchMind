@@ -41,7 +41,7 @@ Match Mind is a **Production-grade football data analysis pipeline**. From raw S
 ```bash
 # Clone the repo
 git clone https://github.com/ronniepiku/MatchMind.git
-cd football-analytics
+cd MatchMind
 
 # Install dependencies with uv
 uv sync
@@ -90,13 +90,13 @@ uv run fb-dashboard
 ```bash
 docker compose up --build
 # Dashboard: http://localhost:8050
-# Postgres: localhost:5432
+# Postgres: localhost:5433
 ```
 
 ## Project Structure
 
 ```
-football-analytics/
+MatchMind/
 ├── src/football_analytics/
 │   ├── __init__.py              # Package root (v0.3.0)
 │   ├── config.py                # Environment & settings

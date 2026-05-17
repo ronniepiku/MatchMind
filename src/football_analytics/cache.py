@@ -20,8 +20,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -142,10 +143,9 @@ def precompute_cache(engine: Any, season_id: int) -> None:
 
     Caches commonly-used queries so that notebooks and dashboard load instantly.
     """
-    from football_analytics.analysis.player_performance import get_squad_comparison
-    from football_analytics.analysis.opponent_profile import get_opponent_attack_patterns
-
     from sqlalchemy import text as sql_text
+
+    from football_analytics.analysis.opponent_profile import get_opponent_attack_patterns
 
     # Cache all team stats for the season
     with engine.connect() as conn:

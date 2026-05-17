@@ -91,8 +91,9 @@ def generate_match_report(
     - Notable events and tactical observations
     """
     from sqlalchemy import text
-    from football_analytics.db import get_engine as _get_engine
+
     from football_analytics.analysis.visualisations import plot_shot_map
+    from football_analytics.db import get_engine as _get_engine
 
     if engine is None:
         engine = _get_engine()
@@ -138,7 +139,7 @@ def generate_match_report(
     # Build context
     match = match_info.iloc[0]
     context = {
-        "title": f"Match Report",
+        "title": "Match Report",
         "match_date": str(match.get("match_date", "")),
         "match_id": match_id,
         "home_score": match.get("home_score", 0),
@@ -174,8 +175,8 @@ def generate_opponent_report(
     - Key player threats (top 5 by xG+xA)
     - Tactical recommendations
     """
-    from football_analytics.db import get_engine as _get_engine
     from football_analytics.analysis.opponent_profile import build_opponent_report
+    from football_analytics.db import get_engine as _get_engine
 
     if engine is None:
         engine = _get_engine()
@@ -215,11 +216,11 @@ def generate_player_report(
     - Radar comparison (percentile)
     - Key strengths and areas for development
     """
-    from football_analytics.db import get_engine as _get_engine
     from football_analytics.analysis.player_performance import (
-        get_player_season_summary,
         get_player_rolling_form,
+        get_player_season_summary,
     )
+    from football_analytics.db import get_engine as _get_engine
 
     if engine is None:
         engine = _get_engine()

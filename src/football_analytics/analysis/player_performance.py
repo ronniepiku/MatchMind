@@ -10,8 +10,6 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from football_analytics.db import get_engine
-
 
 def get_player_season_summary(
     engine: Engine,

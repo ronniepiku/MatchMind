@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # =============================================================================
 # TESTS: xG Model
 # =============================================================================
@@ -66,7 +65,7 @@ class TestXGModel:
 
     def test_predictions_in_valid_range(self, sample_shots: pd.DataFrame) -> None:
         """All xG predictions should be between 0 and 1."""
-        from football_analytics.analysis.xg_model import train_xg_model, predict_xg
+        from football_analytics.analysis.xg_model import predict_xg, train_xg_model
 
         model, _, _ = train_xg_model(sample_shots, cv_folds=3)
         predictions = predict_xg(model, sample_shots)
@@ -142,8 +141,8 @@ class TestParquetCache:
 
     def test_cache_miss_then_hit(self, tmp_path: Path) -> None:
         """First call should miss, second should hit."""
-        from football_analytics.cache import cached_query, CACHE_DIR
         import football_analytics.cache as cache_mod
+        from football_analytics.cache import cached_query
 
         # Redirect cache to temp dir
         original_dir = cache_mod.CACHE_DIR
@@ -171,8 +170,8 @@ class TestParquetCache:
 
     def test_invalidate_cache(self, tmp_path: Path) -> None:
         """Invalidation should remove cached files."""
-        from football_analytics.cache import cached_query, invalidate_cache
         import football_analytics.cache as cache_mod
+        from football_analytics.cache import cached_query, invalidate_cache
 
         original_dir = cache_mod.CACHE_DIR
         cache_mod.CACHE_DIR = tmp_path

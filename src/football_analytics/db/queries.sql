@@ -16,7 +16,7 @@ SELECT
     e.play_pattern,
     COUNT(*) AS possessions,
     COUNT(*) FILTER (WHERE e.event_type = 'Shot') AS shots_from_pattern,
-    ROUND(AVG(e.xg) FILTER (WHERE e.event_type = 'Shot'), 3) AS avg_xg_per_shot,
+    ROUND((AVG(e.xg) FILTER (WHERE e.event_type = 'Shot'))::NUMERIC, 3) AS avg_xg_per_shot,
     COUNT(*) FILTER (WHERE e.event_type = 'Shot' AND e.shot_outcome = 'Goal') AS goals
 FROM events e
 JOIN teams t ON e.team_id = t.team_id

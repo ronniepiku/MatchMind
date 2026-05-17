@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import pdist

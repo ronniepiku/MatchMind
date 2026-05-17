@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.ruff_cache/
 
 # Virtual environments
 .venv/
@@ -44,3 +45,7 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+
+# UV
+.uv/
+uv.lock

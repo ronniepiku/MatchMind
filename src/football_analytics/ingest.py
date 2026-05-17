@@ -12,9 +12,10 @@ Performance notes:
 
 from __future__ import annotations
 
-import io
 import csv
+import io
 import logging
+import uuid
 from typing import Any
 
 import pandas as pd
@@ -100,6 +101,20 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # Only rename columns that exist
     existing_renames = {k: v for k, v in col_map.items() if k in df.columns}
     df = df.rename(columns=existing_renames)
+
+    # Generate event UUIDs if missing (StatsBomb open data may omit explicit event_id)
+    if "event_id" not in df.columns or df["event_id"].isnull().any():
+        if "id" in raw_events.columns:
+            generated_ids = raw_events["id"].astype(str).apply(
+                lambda raw_id: str(uuid.uuid5(uuid.NAMESPACE_URL, f"{match_id}-{raw_id}"))
+            )
+        else:
+            generated_ids = [str(uuid.uuid4()) for _ in range(len(df))]
+
+        if "event_id" in df.columns:
+            df["event_id"] = df["event_id"].fillna(generated_ids)
+        else:
+            df["event_id"] = generated_ids
 
     # Extract location coordinates (vectorised)
     if "location" in df.columns:
@@ -266,7 +281,7 @@ def _copy_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) -> None
     try:
         cursor = raw_conn.cursor()
         # Create temp staging table
-        cursor.execute(f"""
+        cursor.execute("""
             CREATE TEMP TABLE _staging_events (LIKE events INCLUDING NOTHING)
             ON COMMIT DROP
         """)
@@ -340,7 +355,8 @@ def ingest_competition(
     all_teams = pd.concat([home_teams, away_teams]).drop_duplicates(subset=["team_id"])
     bulk_load_teams(engine, all_teams)
 
-    # 4. Load matches
+    # 4. Load competition metadata and matches
+    _load_competition(engine, matches_df, competition_id, season_id)
     _load_matches(engine, matches_df, competition_id, season_id)
 
     # 5. Process each match (events + lineups)
@@ -371,6 +387,47 @@ def ingest_competition(
             continue
 
     logger.info("Ingestion complete for competition=%d season=%d", competition_id, season_id)
+
+
+def _load_competition(
+    engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int
+) -> None:
+    """Load the competition/season row required by match foreign keys."""
+    if matches_df.empty:
+        return
+
+    first_row = matches_df.iloc[0]
+    competition_name = first_row.get("competition_name") or "Unknown Competition"
+    season_name = first_row.get("season_name") or f"Season {season_id}"
+    country_name = first_row.get("country_name")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO competitions (
+                    competition_id,
+                    competition_name,
+                    country_name,
+                    season_id,
+                    season_name
+                )
+                VALUES (
+                    :competition_id,
+                    :competition_name,
+                    :country_name,
+                    :season_id,
+                    :season_name
+                )
+                ON CONFLICT (competition_id) DO NOTHING
+            """),
+            {
+                "competition_id": competition_id,
+                "competition_name": competition_name,
+                "country_name": country_name,
+                "season_id": season_id,
+                "season_name": season_name,
+            },
+        )
 
 
 def _load_matches(

@@ -317,7 +317,7 @@ def export_ffmpeg_clip_list(
     """
     lines = [
         "#!/bin/bash",
-        f"# Auto-generated clip extraction script",
+        "# Auto-generated clip extraction script",
         f"# Source: {video_path}",
         f"# Clips: {len(clips)}",
         "",

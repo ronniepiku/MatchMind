@@ -17,12 +17,10 @@ import httpx
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
-from football_analytics.config import config
 from football_analytics.db import get_engine
 from football_analytics.ingest import (
     _extract_players_from_events,
     _load_lineups,
-    _load_matches,
     _resolve_ids,
     bulk_load_events,
     bulk_load_players,

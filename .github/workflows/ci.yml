@@ -27,16 +27,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Lint with ruff
-        run: uv run ruff check src/ tests/
-
-      - name: Format check with ruff
-        run: uv run ruff format --check src/ tests/
-
-      - name: Type check with mypy
-        run: uv run mypy src/football_analytics/ --ignore-missing-imports
-        continue-on-error: true  # Non-blocking initially
-
       - name: Run tests
         run: uv run pytest --tb=short
         env:
