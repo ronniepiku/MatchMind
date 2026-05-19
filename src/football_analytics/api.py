@@ -8,12 +8,11 @@ Exposes analysis functions as HTTP endpoints for:
 
 Endpoints:
 - /api/v1/players/{id}/profile — Player performance summary
-- /api/v1/players/{id}/similarity — Similar players
+- /api/v1/players/{id}/similar — Similar players
 - /api/v1/players/{id}/development — Development trajectory
-- /api/v1/teams/{id}/profile — Team analysis
 - /api/v1/teams/{id}/set-pieces — Set-piece analysis
-- /api/v1/matches/{id}/simulation — Match outcome simulation
-- /api/v1/matches/{id}/possession-chains — Possession chain analysis
+- /api/v1/teams/{id}/possession-profile — Possession chain analysis
+- /api/v1/simulation/match — Match outcome simulation
 - /api/v1/xg/predict — Predict xG for shot data
 - /api/v1/health — Health check
 """
@@ -21,6 +20,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -38,11 +38,14 @@ app = FastAPI(
 )
 
 # CORS for frontend integrations
+_allowed_origins = os.getenv(
+    "CORS_ORIGINS", "http://localhost:8050,http://localhost:3000"
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -60,12 +63,18 @@ class HealthResponse(BaseModel):
 class ShotInput(BaseModel):
     """Input for xG prediction."""
 
-    location_x: float = Field(..., ge=0, le=120, description="X coordinate (StatsBomb pitch)")
-    location_y: float = Field(..., ge=0, le=80, description="Y coordinate (StatsBomb pitch)")
+    location_x: float = Field(
+        ..., ge=0, le=120, description="X coordinate (StatsBomb pitch)"
+    )
+    location_y: float = Field(
+        ..., ge=0, le=80, description="Y coordinate (StatsBomb pitch)"
+    )
     shot_body_part: str = Field("Foot", description="Body part: Foot, Head, Other")
     under_pressure: bool = Field(False, description="Whether shot was under pressure")
     play_pattern: str = Field("From Open Play", description="Play pattern")
-    shot_type: str | None = Field(None, description="Shot type: Penalty, Free Kick, etc.")
+    shot_type: str | None = Field(
+        None, description="Shot type: Penalty, Free Kick, etc."
+    )
 
 
 class XGPredictionResponse(BaseModel):
@@ -178,17 +187,24 @@ async def predict_xg(shot: ShotInput) -> XGPredictionResponse:
     import numpy as np
     import pandas as pd
 
-    from football_analytics.analysis.xg_model import engineer_features, get_feature_columns
+    from football_analytics.analysis.xg_model import (
+        engineer_features,
+        get_feature_columns,
+    )
 
     # Build single-row DataFrame
-    shot_df = pd.DataFrame([{
-        "location_x": shot.location_x,
-        "location_y": shot.location_y,
-        "shot_body_part": shot.shot_body_part,
-        "under_pressure": shot.under_pressure,
-        "play_pattern": shot.play_pattern,
-        "shot_type": shot.shot_type,
-    }])
+    shot_df = pd.DataFrame(
+        [
+            {
+                "location_x": shot.location_x,
+                "location_y": shot.location_y,
+                "shot_body_part": shot.shot_body_part,
+                "under_pressure": shot.under_pressure,
+                "play_pattern": shot.play_pattern,
+                "shot_type": shot.shot_type,
+            }
+        ]
+    )
 
     features_df = engineer_features(shot_df)
     feature_cols = get_feature_columns()
@@ -306,16 +322,21 @@ async def get_player_profile(
         key_passes=result.key_passes,
         passes_completed=result.passes_completed,
         passes_attempted=result.passes_attempted,
-        pass_accuracy=round(result.passes_completed / max(result.passes_attempted, 1), 3),
+        pass_accuracy=round(
+            result.passes_completed / max(result.passes_attempted, 1), 3
+        ),
         pressures=result.pressures,
         tackles=result.tackles,
         interceptions=result.interceptions,
     )
 
 
-@app.get("/api/v1/players/{player_id}/similar", response_model=list[SimilarPlayerResponse])
+@app.get(
+    "/api/v1/players/{player_id}/similar", response_model=list[SimilarPlayerResponse]
+)
 async def get_similar_players(
     player_id: int,
+    season_id: int = Query(106, description="Season to compute vectors from"),
     top_n: int = Query(10, ge=1, le=50, description="Number of similar players"),
 ) -> list[SimilarPlayerResponse]:
     """Find players with similar statistical profiles.
@@ -323,27 +344,147 @@ async def get_similar_players(
     Uses cosine similarity on normalised per-90 feature vectors.
     Requires database connection with player data loaded.
     """
-    # This endpoint requires pre-computed similarity data
-    # Return placeholder structure for API contract
-    raise HTTPException(
-        status_code=501,
-        detail="Similarity search requires pre-computed vectors. Use the CLI or Python API.",
+    from football_analytics.analysis.similarity import (
+        compute_player_vectors,
+        find_similar_players,
     )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+
+    try:
+        vectors = compute_player_vectors(season_id, engine, min_appearances=3)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compute player vectors: {e}",
+        )
+
+    if player_id not in vectors["player_id"].values:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Player {player_id} not found in season {season_id} data",
+        )
+
+    similar = find_similar_players(player_id, vectors, top_n=top_n)
+
+    return [
+        SimilarPlayerResponse(
+            player_id=int(row["player_id"]),
+            player_name=row["player_name"],
+            similarity_score=float(row["similarity"]),
+            position=None,
+        )
+        for _, row in similar.iterrows()
+    ]
 
 
 @app.get("/api/v1/players/{player_id}/development", response_model=DevelopmentResponse)
 async def get_player_development(
     player_id: int,
-    position_group: str = Query("midfielder", description="Position group for metric selection"),
+    position_group: str = Query(
+        "midfielder", description="Position group for metric selection"
+    ),
 ) -> DevelopmentResponse:
     """Get player development trajectory across seasons.
 
     Analyses multi-season trends to classify whether a player is
     improving, declining, or stable.
     """
-    raise HTTPException(
-        status_code=501,
-        detail="Development tracking requires multi-season data. Use the Python API.",
+    from sqlalchemy import text
+
+    from football_analytics.analysis.development import compute_development_profile
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+
+    # Fetch per-90 data for the player across all seasons
+    query = text("""
+        SELECT
+            e.player_id,
+            m.season_id,
+            COUNT(DISTINCT e.match_id) AS matches,
+            COUNT(DISTINCT e.match_id) * 70 AS minutes_played,
+            COUNT(*) FILTER (WHERE e.event_type = 'Shot'
+                AND e.shot_outcome = 'Goal') AS goals,
+            COALESCE(SUM(e.xg) FILTER (WHERE e.event_type = 'Shot'), 0)
+                AS xg_total,
+            COALESCE(SUM(e.xa) FILTER (WHERE e.xa IS NOT NULL), 0)
+                AS xa_total,
+            COUNT(*) FILTER (WHERE e.event_type = 'Shot') AS shots,
+            COUNT(*) FILTER (WHERE e.key_pass) AS key_passes,
+            COUNT(*) FILTER (WHERE e.event_type = 'Pass'
+                AND e.pass_outcome IS NULL) AS passes_completed,
+            COUNT(*) FILTER (WHERE e.event_type = 'Pass')
+                AS passes_attempted,
+            COUNT(*) FILTER (WHERE e.event_type = 'Pressure')
+                AS pressures,
+            COUNT(*) FILTER (WHERE e.event_type = 'Tackle') AS tackles,
+            COUNT(*) FILTER (WHERE e.event_type = 'Interception')
+                AS interceptions,
+            COUNT(*) FILTER (WHERE e.event_type = 'Dribble'
+                AND e.dribble_outcome = 'Complete') AS dribbles_completed,
+            COUNT(*) FILTER (WHERE e.event_type = 'Carry') AS carries
+        FROM events e
+        JOIN matches m ON e.match_id = m.match_id
+        WHERE e.player_id = :player_id
+        GROUP BY e.player_id, m.season_id
+        HAVING COUNT(DISTINCT e.match_id) >= 3
+        ORDER BY m.season_id
+    """)
+
+    import pandas as pd
+
+    with engine.connect() as conn:
+        per90_df = pd.read_sql(query, conn, params={"player_id": player_id})
+
+    if per90_df.empty or len(per90_df) < 2:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Insufficient multi-season data for player {player_id}. "
+                "Need at least 2 seasons with 3+ appearances each."
+            ),
+        )
+
+    # Compute per-90 rates
+    per90_factor = 90.0 / per90_df["minutes_played"].clip(lower=90)
+    per90_df["goals_per_90"] = per90_df["goals"] * per90_factor
+    per90_df["xg_per_90"] = per90_df["xg_total"] * per90_factor
+    per90_df["xa_per_90"] = per90_df["xa_total"] * per90_factor
+    per90_df["shots_per_90"] = per90_df["shots"] * per90_factor
+    per90_df["key_passes_per_90"] = per90_df["key_passes"] * per90_factor
+    per90_df["pressures_per_90"] = per90_df["pressures"] * per90_factor
+    per90_df["successful_dribbles_per_90"] = (
+        per90_df["dribbles_completed"] * per90_factor
+    )
+    per90_df["passes_completed_per_90"] = per90_df["passes_completed"] * per90_factor
+    per90_df["pass_accuracy"] = per90_df["passes_completed"] / per90_df[
+        "passes_attempted"
+    ].clip(lower=1)
+
+    # Get player name
+    with engine.connect() as conn:
+        name_row = conn.execute(
+            text("SELECT player_name FROM players WHERE player_id = :pid"),
+            {"pid": player_id},
+        ).fetchone()
+    player_name = name_row[0] if name_row else f"Player {player_id}"
+
+    profile = compute_development_profile(
+        per90_df,
+        player_id=player_id,
+        position_group=position_group,
+        player_name=player_name,
+    )
+
+    return DevelopmentResponse(
+        player_id=profile.player_id,
+        player_name=profile.player_name,
+        trajectory=profile.trajectory,
+        seasons_tracked=len(profile.seasons),
+        trend_slopes=profile.trend_slopes,
+        percentile_changes=profile.percentile_changes,
     )
 
 
@@ -353,21 +494,128 @@ async def get_team_set_pieces(
     season_id: int | None = Query(None),
 ) -> TeamSetPieceResponse:
     """Get set-piece efficiency metrics for a team."""
-    raise HTTPException(
-        status_code=501,
-        detail="Set-piece analysis requires event data. Use the Python API.",
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.analysis.set_pieces import (
+        compute_set_piece_efficiency,
+        extract_set_pieces,
+        set_pieces_to_dataframe,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+
+    # Fetch set-piece events for the team
+    query = text("""
+        SELECT e.*, p.player_name
+        FROM events e
+        LEFT JOIN players p ON e.player_id = p.player_id
+        JOIN matches m ON e.match_id = m.match_id
+        WHERE e.team_id = :team_id
+          AND e.play_pattern IN (
+              'From Corner', 'From Free Kick', 'From Throw In'
+          )
+    """ + (" AND m.season_id = :season_id" if season_id else ""))
+
+    params: dict[str, Any] = {"team_id": team_id}
+    if season_id:
+        params["season_id"] = season_id
+
+    with engine.connect() as conn:
+        events_df = pd.read_sql(query, conn, params=params)
+
+    if events_df.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No set-piece data found for team {team_id}",
+        )
+
+    sequences = extract_set_pieces(events_df)
+    sp_df = set_pieces_to_dataframe(sequences)
+    efficiency = compute_set_piece_efficiency(sp_df, team_id)
+
+    return TeamSetPieceResponse(
+        team_id=team_id,
+        total_set_pieces=efficiency.get("total_set_pieces", 0),
+        corner_count=efficiency.get("corner_count"),
+        corner_goal_rate=efficiency.get("corner_goal_rate"),
+        free_kick_count=efficiency.get("free_kick_count"),
+        free_kick_goal_rate=efficiency.get("free_kick_goal_rate"),
+        xg_from_set_pieces=(
+            round(sp_df["xg_generated"].sum(), 2) if not sp_df.empty else 0.0
+        ),
     )
 
 
-@app.get("/api/v1/teams/{team_id}/possession-profile", response_model=PossessionChainSummary)
+@app.get(
+    "/api/v1/teams/{team_id}/possession-profile",
+    response_model=PossessionChainSummary,
+)
 async def get_possession_profile(
     team_id: int,
     season_id: int | None = Query(None),
 ) -> PossessionChainSummary:
     """Get possession chain profile for a team."""
-    raise HTTPException(
-        status_code=501,
-        detail="Possession chain analysis requires event data. Use the Python API.",
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.analysis.possession_chains import (
+        chains_to_dataframe,
+        compute_team_possession_profile,
+        extract_possession_chains,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+
+    # Fetch all events for the team's matches
+    query = text(
+        """
+        SELECT e.*
+        FROM events e
+        JOIN matches m ON e.match_id = m.match_id
+        WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
+    """
+        + (" AND m.season_id = :season_id" if season_id else "")
+        + """
+        ORDER BY e.match_id, e.minute, e.second
+    """
+    )
+
+    params: dict[str, Any] = {"team_id": team_id}
+    if season_id:
+        params["season_id"] = season_id
+
+    with engine.connect() as conn:
+        events_df = pd.read_sql(query, conn, params=params)
+
+    if events_df.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No event data found for team {team_id}",
+        )
+
+    chains = extract_possession_chains(events_df)
+    chains_df = chains_to_dataframe(chains)
+    profile = compute_team_possession_profile(chains_df, team_id)
+
+    if profile["total_chains"] == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No possession chains found for team {team_id}",
+        )
+
+    return PossessionChainSummary(
+        team_id=team_id,
+        total_chains=profile["total_chains"],
+        avg_chain_length_events=profile.get("avg_chain_length_events", 0.0),
+        avg_passes_per_chain=profile.get("avg_passes_per_chain", 0.0),
+        final_third_entry_rate=profile.get("final_third_entry_rate", 0.0),
+        box_entry_rate=profile.get("box_entry_rate", 0.0),
+        dangerous_possession_rate=profile.get("dangerous_possession_rate", 0.0),
+        xg_per_chain=profile.get("xg_per_chain", 0.0),
+        style_distribution=profile.get("style_distribution", {}),
     )
 
 

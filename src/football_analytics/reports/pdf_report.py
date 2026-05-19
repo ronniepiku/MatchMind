@@ -60,6 +60,7 @@ def _html_to_pdf(html_content: str, output_path: Path) -> Path:
     """Convert HTML string to PDF file using WeasyPrint."""
     try:
         from weasyprint import HTML
+
         HTML(string=html_content).write_pdf(str(output_path))
         logger.info("PDF report saved: %s", output_path)
         return output_path
@@ -92,7 +93,6 @@ def generate_match_report(
     """
     from sqlalchemy import text
 
-    from football_analytics.analysis.visualisations import plot_shot_map
     from football_analytics.db import get_engine as _get_engine
 
     if engine is None:
@@ -105,36 +105,51 @@ def generate_match_report(
     with engine.connect() as conn:
         match_info = pd.read_sql(
             text("SELECT * FROM matches WHERE match_id = :mid"),
-            conn, params={"mid": match_id},
+            conn,
+            params={"mid": match_id},
         )
         if match_info.empty:
-            raise ValueError(f"Match {match_id} not found")
+            raise ValueError(
+                f"Match {match_id} not found in database. "
+                "Please run the ingestion pipeline first: uv run fb-ingest"
+            )
 
-        # Fetch team stats
-        team_stats = pd.read_sql(
-            text("""
-                SELECT * FROM v_team_match_summary
-                WHERE match_id = :mid
-            """),
-            conn, params={"mid": match_id},
-        )
+        # Fetch team stats — handle missing view gracefully
+        try:
+            team_stats = pd.read_sql(
+                text("""
+                    SELECT * FROM v_team_match_summary
+                    WHERE match_id = :mid
+                """),
+                conn,
+                params={"mid": match_id},
+            )
+        except Exception as e:
+            logger.warning("Could not query v_team_match_summary: %s", e)
+            team_stats = pd.DataFrame()
 
         # Fetch shots for shot map
         shots = pd.read_sql(
             text("""
                 SELECT e.*, p.player_name
                 FROM events e
-                JOIN players p ON e.player_id = p.player_id
+                LEFT JOIN players p ON e.player_id = p.player_id
                 WHERE e.match_id = :mid AND e.event_type = 'Shot'
             """),
-            conn, params={"mid": match_id},
+            conn,
+            params={"mid": match_id},
         )
 
     # Generate shot map visualisation
     shot_map_b64 = ""
     if not shots.empty:
-        fig = plot_shot_map(shots, title=f"Shot Map — Match {match_id}")
-        shot_map_b64 = _fig_to_base64(fig)
+        try:
+            from football_analytics.analysis.visualisations import plot_shot_map
+
+            fig = plot_shot_map(shots, title=f"Shot Map — Match {match_id}")
+            shot_map_b64 = _fig_to_base64(fig)
+        except Exception as e:
+            logger.warning("Could not generate shot map: %s", e)
 
     # Build context
     match = match_info.iloc[0]
@@ -146,11 +161,18 @@ def generate_match_report(
         "away_score": match.get("away_score", 0),
         "team_stats": team_stats.to_dict("records") if not team_stats.empty else [],
         "shot_map_img": shot_map_b64,
-        "shots_summary": shots.groupby("team_id").agg(
-            shots=("event_id", "count"),
-            xg=("xg", "sum"),
-            goals=("shot_outcome", lambda x: (x == "Goal").sum()),
-        ).reset_index().to_dict("records") if not shots.empty else [],
+        "shots_summary": (
+            shots.groupby("team_id")
+            .agg(
+                shots=("event_id", "count"),
+                xg=("xg", "sum"),
+                goals=("shot_outcome", lambda x: (x == "Goal").sum()),
+            )
+            .reset_index()
+            .to_dict("records")
+            if not shots.empty
+            else []
+        ),
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
 
@@ -185,6 +207,18 @@ def generate_opponent_report(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     report = build_opponent_report(team_id, season_id, engine)
+
+    # Check if any data was returned
+    all_empty = all(
+        report[key].empty
+        for key in ("attack_patterns", "defensive_shape", "key_players")
+    )
+    if all_empty:
+        raise ValueError(
+            f"No data available for team_id={team_id}, season_id={season_id}. "
+            "Ensure the data has been ingested for this team/season combination. "
+            "Run: uv run fb-ingest"
+        )
 
     context = {
         "title": "Opponent Scouting Report",
@@ -231,6 +265,13 @@ def generate_player_report(
     summary = get_player_season_summary(engine, player_id, season_id)
     rolling = get_player_rolling_form(engine, player_id, season_id)
 
+    if summary.empty:
+        raise ValueError(
+            f"No data available for player_id={player_id}, season_id={season_id}. "
+            "Ensure the data has been ingested for this player/season combination. "
+            "Run: uv run fb-ingest"
+        )
+
     context = {
         "title": "Player Performance Report",
         "player_id": player_id,
@@ -254,10 +295,14 @@ def main() -> None:
     """CLI entry point for PDF report generation."""
     import argparse
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
 
     parser = argparse.ArgumentParser(description="Generate PDF reports")
-    parser.add_argument("--type", choices=["match", "opponent", "player"], required=True)
+    parser.add_argument(
+        "--type", choices=["match", "opponent", "player"], required=True
+    )
     parser.add_argument("--match-id", type=int, help="Match ID (for match reports)")
     parser.add_argument("--team-id", type=int, help="Team ID (for opponent reports)")
     parser.add_argument("--player-id", type=int, help="Player ID (for player reports)")

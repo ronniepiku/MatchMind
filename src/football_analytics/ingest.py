@@ -46,7 +46,9 @@ def fetch_matches(competition_id: int, season_id: int) -> pd.DataFrame:
     df = sb.matches(competition_id=competition_id, season_id=season_id)
     logger.info(
         "Fetched %d matches for competition=%d season=%d",
-        len(df), competition_id, season_id,
+        len(df),
+        competition_id,
+        season_id,
     )
     return df
 
@@ -105,8 +107,14 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # Generate event UUIDs if missing (StatsBomb open data may omit explicit event_id)
     if "event_id" not in df.columns or df["event_id"].isnull().any():
         if "id" in raw_events.columns:
-            generated_ids = raw_events["id"].astype(str).apply(
-                lambda raw_id: str(uuid.uuid5(uuid.NAMESPACE_URL, f"{match_id}-{raw_id}"))
+            generated_ids = (
+                raw_events["id"]
+                .astype(str)
+                .apply(
+                    lambda raw_id: str(
+                        uuid.uuid5(uuid.NAMESPACE_URL, f"{match_id}-{raw_id}")
+                    )
+                )
             )
         else:
             generated_ids = [str(uuid.uuid4()) for _ in range(len(df))]
@@ -119,7 +127,9 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # Extract location coordinates (vectorised)
     if "location" in df.columns:
         locations = df["location"].apply(
-            lambda loc: pd.Series(loc if isinstance(loc, list) and len(loc) >= 2 else [None, None])
+            lambda loc: pd.Series(
+                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
+            )
         )
         df["location_x"] = locations[0].astype("Float64")
         df["location_y"] = locations[1].astype("Float64")
@@ -163,15 +173,26 @@ def normalize_lineups(
     for team_name, lineup_df in lineups_dict.items():
         team_id = team_id_map.get(team_name, 0)
         for _, row in lineup_df.iterrows():
-            records.append({
-                "match_id": match_id,
-                "team_id": team_id,
-                "player_id": row.get("player_id"),
-                "player_name": row.get("player_name"),
-                "jersey_number": row.get("jersey_number"),
-                "position": row.get("positions", [{}])[0].get("position") if row.get("positions") else None,
-                "is_starter": row.get("positions", [{}])[0].get("from", "0:00:00") == "0:00:00" if row.get("positions") else False,
-            })
+            records.append(
+                {
+                    "match_id": match_id,
+                    "team_id": team_id,
+                    "player_id": row.get("player_id"),
+                    "player_name": row.get("player_name"),
+                    "jersey_number": row.get("jersey_number"),
+                    "position": (
+                        row.get("positions", [{}])[0].get("position")
+                        if row.get("positions")
+                        else None
+                    ),
+                    "is_starter": (
+                        row.get("positions", [{}])[0].get("from", "0:00:00")
+                        == "0:00:00"
+                        if row.get("positions")
+                        else False
+                    ),
+                }
+            )
     return pd.DataFrame(records)
 
 
@@ -241,12 +262,32 @@ def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:
 
     # Select only columns that exist in our schema
     schema_cols = [
-        "event_id", "match_id", "team_id", "player_id", "event_type",
-        "period", "timestamp", "minute", "second", "possession",
-        "possession_team_id", "play_pattern", "location_x", "location_y",
-        "duration", "under_pressure", "xg", "shot_outcome",
-        "pass_length", "pass_angle", "pass_outcome", "pass_recipient_id",
-        "key_pass", "assist", "xa", "counterpress",
+        "event_id",
+        "match_id",
+        "team_id",
+        "player_id",
+        "event_type",
+        "period",
+        "timestamp",
+        "minute",
+        "second",
+        "possession",
+        "possession_team_id",
+        "play_pattern",
+        "location_x",
+        "location_y",
+        "duration",
+        "under_pressure",
+        "xg",
+        "shot_outcome",
+        "pass_length",
+        "pass_angle",
+        "pass_outcome",
+        "pass_recipient_id",
+        "key_pass",
+        "assist",
+        "xa",
+        "counterpress",
     ]
     available_cols = [c for c in schema_cols if c in events_df.columns]
     insert_df = events_df[available_cols].copy()
@@ -271,7 +312,15 @@ def _copy_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) -> None
     """
     # Serialize DataFrame to CSV in-memory buffer
     buffer = io.StringIO()
-    df.to_csv(buffer, index=False, header=False, sep="\t", na_rep="\\N", quoting=csv.QUOTE_NONE, escapechar="\\")
+    df.to_csv(
+        buffer,
+        index=False,
+        header=False,
+        sep="\t",
+        na_rep="\\N",
+        quoting=csv.QUOTE_NONE,
+        escapechar="\\",
+    )
     buffer.seek(0)
 
     cols_str = ", ".join(cols)
@@ -362,7 +411,9 @@ def ingest_competition(
     # 5. Process each match (events + lineups)
     team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"]))
 
-    for _, match_row in tqdm(matches_df.iterrows(), total=len(matches_df), desc="Ingesting matches"):
+    for _, match_row in tqdm(
+        matches_df.iterrows(), total=len(matches_df), desc="Ingesting matches"
+    ):
         match_id = int(match_row["match_id"])
         try:
             # Fetch and load events
@@ -386,7 +437,26 @@ def ingest_competition(
             logger.warning("Failed to process match %d: %s", match_id, e)
             continue
 
-    logger.info("Ingestion complete for competition=%d season=%d", competition_id, season_id)
+    # 6. Refresh materialised views for fresh dashboard/API data
+    _refresh_materialised_views(engine)
+
+    logger.info(
+        "Ingestion complete for competition=%d season=%d", competition_id, season_id
+    )
+
+
+def _refresh_materialised_views(engine: Engine) -> None:
+    """Refresh materialised views after ingestion for data freshness."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("SELECT refresh_materialised_views()"))
+        logger.info("Materialised views refreshed successfully")
+    except Exception as e:
+        logger.warning(
+            "Could not refresh materialised views: %s. "
+            "Dashboard data may be stale until manually refreshed.",
+            e,
+        )
 
 
 def _load_competition(
@@ -455,7 +525,11 @@ def _load_matches(
                     "away_team_id": int(row["away_team_id"]),
                     "home_score": int(row.get("home_score", 0)),
                     "away_score": int(row.get("away_score", 0)),
-                    "match_week": int(row.get("match_week", 0)) if pd.notnull(row.get("match_week")) else None,
+                    "match_week": (
+                        int(row.get("match_week", 0))
+                        if pd.notnull(row.get("match_week"))
+                        else None
+                    ),
                 },
             )
 
@@ -506,7 +580,11 @@ def _load_lineups(engine: Engine, lineups: pd.DataFrame) -> None:
                     "match_id": int(row["match_id"]),
                     "team_id": int(row["team_id"]),
                     "player_id": int(row["player_id"]),
-                    "jersey_number": int(row["jersey_number"]) if pd.notnull(row.get("jersey_number")) else None,
+                    "jersey_number": (
+                        int(row["jersey_number"])
+                        if pd.notnull(row.get("jersey_number"))
+                        else None
+                    ),
                     "position": row.get("position"),
                     "is_starter": bool(row.get("is_starter", False)),
                 },
@@ -526,12 +604,31 @@ def main() -> None:
     """
     import argparse
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
 
-    parser = argparse.ArgumentParser(description="Ingest StatsBomb data into PostgreSQL")
-    parser.add_argument("--competition-id", type=int, default=43, help="StatsBomb competition ID (default: 43 = World Cup)")
-    parser.add_argument("--season-id", type=int, default=106, help="StatsBomb season ID (default: 106 = 2022)")
-    parser.add_argument("--max-matches", type=int, default=None, help="Limit number of matches (for testing)")
+    parser = argparse.ArgumentParser(
+        description="Ingest StatsBomb data into PostgreSQL"
+    )
+    parser.add_argument(
+        "--competition-id",
+        type=int,
+        default=43,
+        help="StatsBomb competition ID (default: 43 = World Cup)",
+    )
+    parser.add_argument(
+        "--season-id",
+        type=int,
+        default=106,
+        help="StatsBomb season ID (default: 106 = 2022)",
+    )
+    parser.add_argument(
+        "--max-matches",
+        type=int,
+        default=None,
+        help="Limit number of matches (for testing)",
+    )
     args = parser.parse_args()
 
     ingest_competition(

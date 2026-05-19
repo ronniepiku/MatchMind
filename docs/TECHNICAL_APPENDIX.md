@@ -51,7 +51,48 @@ Our trainable logistic regression xG model provides:
 
 **Comparison methodology**: `compare_to_statsbomb()` computes mean absolute difference between our model's predictions and StatsBomb's pre-computed xG values, establishing alignment with industry models.
 
-### Player Similarity Methodology (`analysis/similarity.py`)
+### Team Scorecard Metrics (`dashboard/app.py` - New in v0.3.1)
+
+The interactive **Team Scorecard** provides holistic performance analysis across four dimensions:
+
+#### 1. **Possession Profile** (KPI Cards & Pie Chart)
+- **Dangerous Possession %**: Proportion of chains classified as "dangerous" (≥25 passes, high xG)
+- **Box Entry Rate**: Proportion of chains that penetrate the opponent's box (end in 18-yard area)
+- **xG per Chain**: Average xG value per possession sequence
+- **Total xG from Chains**: Cumulative xG across all possession chains
+- **Avg Passes per Chain**: Mean pass count per possession sequence
+- **Build-up Style Breakdown**: Distribution of attack types (short passing, wing play, counter, direct)
+
+**Data source**: `possession_chains.extract_possession_chains()` + `compute_team_possession_profile()`
+
+#### 2. **Pressing/Defensive Shape** (Bar Chart)
+- **Defensive Actions by Zone**: Stacked bar chart showing pressures, tackles, and interceptions per pitch zone (defense, midfield, attack)
+- **Zone coverage**: 6-zone segmentation (left/centre/right × defensive/middle/attacking)
+
+**Data source**: `opponent_profile.get_opponent_defensive_shape()` — computed from defensive event locations
+
+#### 3. **Set-Piece Efficiency** (Table)
+- **Corners**: Success rate, goals scored, xG generated from corner kicks
+- **Free Kicks**: Goals, xG generated from direct/indirect free kicks
+- **Throw-ins**: Frequency and outcomes
+- **Delivery zones**: Dangerous delivery areas (near post, penalty spot, edge of box)
+
+**Data source**: `set_pieces.extract_set_pieces()` + `compute_set_piece_efficiency()`
+
+#### 4. **Transition Metrics** (Table)
+- **Offensive Transitions**: Count, success rate (%), avg players involved
+- **Defensive Transitions**: Count, success rate, avg recovery time (seconds)
+- **Direct play frequency**: Percentage of long-ball transitions
+- **Counter-attack efficiency**: Goals/xG from transitions
+
+**Data source**: `possession_chains.compute_transition_metrics()` — transitions classified by speed and progression
+
+**Interpretation**:
+- **High dangerous possession %** → Strong attacking efficiency in chance creation
+- **High box entry rate** → Good penetration and final-third execution
+- **High transition efficiency** → Quick tempo, vulnerability to counter-presses (or strength)
+
+
 
 **Approach**: Position-aware cosine similarity on normalised feature vectors.
 

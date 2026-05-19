@@ -169,10 +169,11 @@ MatchMind/
 
 ## Dashboard
 
-Two interactive views accessible at `http://localhost:8050`:
+Three interactive views accessible at `http://localhost:8050`:
 
 1. **Opponent Profile** — Select a team and season to generate a scouting report with attack pattern breakdown, defensive zone analysis, and key player identification.
 2. **Player Performance** — Individual player season summary, rolling form chart, and squad-level comparison table.
+3. **Team Scorecard** — Holistic team performance dashboard with KPI cards (dangerous possession %, box entry rate, xG/chain), possession style breakdown pie chart, defensive actions by zone, set-piece efficiency, and transition metrics.
 
 ## Report Generation
 
@@ -316,6 +317,17 @@ uv run ruff format src/ tests/
 This project uses [StatsBomb Open Data](https://github.com/statsbomb/open-data) — freely available event-level football data under a non-commercial license. No proprietary data is included.
 
 Default dataset: **FIFA World Cup 2022** (competition_id=43, season_id=106).
+
+## Documentation
+
+### For Users
+- **[API Guide](docs/API_GUIDE.md)** — Complete REST API reference with endpoint examples, error handling, integration patterns
+- **[Video Integration](docs/VIDEO_INTEGRATION.md)** — How to sync events with broadcast video and extract clips
+- **[Technical Appendix](docs/TECHNICAL_APPENDIX.md)** — Detailed methodology for all metrics, models, and analyses
+
+### For Developers
+- **[Testing Guide](docs/TESTING_GUIDE.md)** — Test organization (73 tests), running tests, writing new tests, coverage targets
+- **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Profiling results, optimisation strategies, benchmarks
 
 ## License
 

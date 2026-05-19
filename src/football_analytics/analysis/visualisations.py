@@ -39,26 +39,50 @@ def plot_shot_map(
     pitch = VerticalPitch(half=True, pitch_type="statsbomb", line_color="#c7d5cc")
     fig, ax = pitch.draw(figsize=(8, 6))
 
+    if shots_df.empty:
+        ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+        return fig
+
     # Goals in red, other shots in team colour
     goals = shots_df[shots_df["shot_outcome"] == "Goal"]
     non_goals = shots_df[shots_df["shot_outcome"] != "Goal"]
 
     # Size proportional to xG (scaled for visibility)
-    pitch.scatter(
-        non_goals["location_x"], non_goals["location_y"],
-        s=non_goals["xg"].fillna(0) * 500 + 30,
-        c=team_color, alpha=0.6, edgecolors="black", linewidth=0.5,
-        ax=ax, zorder=2,
-    )
-    pitch.scatter(
-        goals["location_x"], goals["location_y"],
-        s=goals["xg"].fillna(0) * 500 + 30,
-        c="red", alpha=0.9, edgecolors="black", linewidth=1,
-        ax=ax, zorder=3, marker="*",
-    )
+    if not non_goals.empty:
+        pitch.scatter(
+            non_goals["location_x"],
+            non_goals["location_y"],
+            s=non_goals["xg"].fillna(0) * 500 + 30,
+            c=team_color,
+            alpha=0.6,
+            edgecolors="black",
+            linewidth=0.5,
+            ax=ax,
+            zorder=2,
+        )
+    if not goals.empty:
+        pitch.scatter(
+            goals["location_x"],
+            goals["location_y"],
+            s=goals["xg"].fillna(0) * 500 + 30,
+            c="red",
+            alpha=0.9,
+            edgecolors="black",
+            linewidth=1,
+            ax=ax,
+            zorder=3,
+            marker="*",
+        )
 
     ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
-    fig.text(0.5, 0.02, "Circle size = xG | Stars = Goals", ha="center", fontsize=9, alpha=0.7)
+    fig.text(
+        0.5,
+        0.02,
+        "Circle size = xG | Stars = Goals",
+        ha="center",
+        fontsize=9,
+        alpha=0.7,
+    )
     plt.tight_layout()
     return fig
 
@@ -94,15 +118,25 @@ def plot_passing_network(
         ax.plot(
             [passer_pos["avg_x"].iloc[0], receiver_pos["avg_x"].iloc[0]],
             [passer_pos["avg_y"].iloc[0], receiver_pos["avg_y"].iloc[0]],
-            color="#2196F3", linewidth=line_width, alpha=alpha, zorder=1,
+            color="#2196F3",
+            linewidth=line_width,
+            alpha=alpha,
+            zorder=1,
         )
 
     # Plot nodes (player positions)
-    node_size = avg_positions["passes_made"] / avg_positions["passes_made"].max() * 400 + 100
+    node_size = (
+        avg_positions["passes_made"] / avg_positions["passes_made"].max() * 400 + 100
+    )
     pitch.scatter(
-        avg_positions["avg_x"], avg_positions["avg_y"],
-        s=node_size, c="#FF5722", edgecolors="black", linewidth=1.5,
-        ax=ax, zorder=2,
+        avg_positions["avg_x"],
+        avg_positions["avg_y"],
+        s=node_size,
+        c="#FF5722",
+        edgecolors="black",
+        linewidth=1.5,
+        ax=ax,
+        zorder=2,
     )
 
     # Labels
@@ -110,9 +144,13 @@ def plot_passing_network(
         name_parts = row["player_name"].split()
         label = name_parts[-1] if name_parts else ""
         ax.annotate(
-            label, (row["avg_x"], row["avg_y"]),
-            textcoords="offset points", xytext=(0, 10),
-            ha="center", fontsize=8, fontweight="bold",
+            label,
+            (row["avg_x"], row["avg_y"]),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            fontsize=8,
+            fontweight="bold",
         )
 
     ax.set_title(title, fontsize=14, fontweight="bold")
@@ -134,8 +172,13 @@ def plot_pressure_heatmap(
 
     if not pressures_df.empty:
         pitch.kdeplot(
-            pressures_df["location_x"], pressures_df["location_y"],
-            ax=ax, cmap="YlOrRd", fill=True, levels=50, alpha=0.7,
+            pressures_df["location_x"],
+            pressures_df["location_y"],
+            ax=ax,
+            cmap="YlOrRd",
+            fill=True,
+            levels=50,
+            alpha=0.7,
         )
 
     ax.set_title(title, fontsize=14, fontweight="bold")
@@ -171,15 +214,17 @@ def plot_xg_timeline(
         minutes = [0] + team_shots["minute"].tolist()
         xg_values = [0] + cumulative_xg.tolist()
 
-        fig.add_trace(go.Scatter(
-            x=minutes,
-            y=xg_values,
-            mode="lines+markers",
-            name=team_name,
-            line=dict(color=color, width=2),
-            marker=dict(size=6),
-            hovertemplate="Min %{x}: xG = %{y:.2f}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=minutes,
+                y=xg_values,
+                mode="lines+markers",
+                name=team_name,
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate="Min %{x}: xG = %{y:.2f}<extra></extra>",
+            )
+        )
 
     fig.update_layout(
         title="Cumulative xG Timeline",
@@ -211,14 +256,16 @@ def plot_player_radar(
     # Clean category labels
     labels = [c.replace("_per_match", "").replace("_", " ").title() for c in categories]
 
-    fig = go.Figure(data=go.Scatterpolar(
-        r=values,
-        theta=labels,
-        fill="toself",
-        fillcolor="rgba(31, 119, 180, 0.3)",
-        line=dict(color="#1f77b4", width=2),
-        name=player_name,
-    ))
+    fig = go.Figure(
+        data=go.Scatterpolar(
+            r=values,
+            theta=labels,
+            fill="toself",
+            fillcolor="rgba(31, 119, 180, 0.3)",
+            line=dict(color="#1f77b4", width=2),
+            name=player_name,
+        )
+    )
 
     fig.update_layout(
         polar=dict(
@@ -249,5 +296,7 @@ def plot_team_trend(
         template="plotly_white",
     )
     fig.update_traces(line=dict(width=2))
-    fig.update_layout(xaxis_title="Match Date", yaxis_title=metric.replace("_", " ").title())
+    fig.update_layout(
+        xaxis_title="Match Date", yaxis_title=metric.replace("_", " ").title()
+    )
     return fig
