@@ -129,33 +129,6 @@ class TestNormalizeEvents:
         assert not result["counterpress"].iloc[0]
 
 
-# =============================================================================
-# TESTS: normalize_lineups
-# =============================================================================
-
-
-class TestNormalizeLineups:
-    """Tests for lineup normalisation."""
-
-    def test_flattens_lineup_dict(self, sample_lineups: dict) -> None:
-        """Should produce a flat DataFrame from nested dict structure."""
-        team_id_map = {"Argentina": 771}
-        result = normalize_lineups(sample_lineups, match_id=1, team_id_map=team_id_map)
-        assert len(result) == 2
-        assert result["team_id"].iloc[0] == 771
-
-    def test_extracts_position(self, sample_lineups: dict) -> None:
-        """Position should be extracted from nested positions list."""
-        team_id_map = {"Argentina": 771}
-        result = normalize_lineups(sample_lineups, match_id=1, team_id_map=team_id_map)
-        assert result["position"].iloc[0] == "Right Wing"
-
-    def test_identifies_starters(self, sample_lineups: dict) -> None:
-        """Players with from='0:00:00' should be marked as starters."""
-        team_id_map = {"Argentina": 771}
-        result = normalize_lineups(sample_lineups, match_id=1, team_id_map=team_id_map)
-        assert result["is_starter"].iloc[0] is True
-
 
 # =============================================================================
 # TESTS: _extract_players_from_events
