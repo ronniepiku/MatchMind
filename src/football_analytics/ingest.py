@@ -300,16 +300,15 @@ def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:
     insert_df = events_df[available_cols].copy()
 
     # Replace NaN/NaT with None for proper NULL handling in integer columns
-    # pd.where alone doesn't reliably convert float NaN to None for int columns
-    for col in insert_df.columns:
-        insert_df[col] = insert_df[col].where(insert_df[col].notna(), None)
-    # Explicitly cast ID columns: convert float IDs (e.g., 5503.0) to int or None
+    # Use nullable Int64 dtype for ID columns to avoid float formatting (e.g. "133353.0")
     int_cols = ["player_id", "team_id", "possession_team_id", "pass_recipient_id"]
     for col in int_cols:
         if col in insert_df.columns:
-            insert_df[col] = insert_df[col].apply(
-                lambda x: int(x) if pd.notnull(x) else None
-            )
+            insert_df[col] = pd.to_numeric(insert_df[col], errors="coerce").astype("Int64")
+    # Convert remaining NaN/NaT to None for non-integer columns
+    for col in insert_df.columns:
+        if col not in int_cols:
+            insert_df[col] = insert_df[col].where(insert_df[col].notna(), None)
 
     try:
         _copy_load_events(engine, insert_df, available_cols)
@@ -589,13 +588,26 @@ def _resolve_ids(events: pd.DataFrame, engine: Engine) -> pd.DataFrame:
 
 
 def _load_lineups(engine: Engine, lineups: pd.DataFrame) -> None:
-    """Bulk load lineup records."""
+    """Bulk load lineup records.
+
+    Also ensures all lineup players exist in the players table (some subs
+    never appear in events and would otherwise cause FK violations).
+    """
     if lineups.empty:
         return
+    # Insert any lineup players missing from the players table
+    lineup_players = lineups[["player_id", "player_name"]].dropna(subset=["player_id"]).copy()
+    lineup_players["player_id"] = lineup_players["player_id"].astype(int)
+    lineup_players = lineup_players.drop_duplicates(subset=["player_id"])
+    bulk_load_players(engine, lineup_players)
+
     with engine.begin() as conn:
         for _, row in lineups.iterrows():
             if pd.isna(row.get("player_id")):
                 continue
+            position_val = row.get("position")
+            if position_val is None or (isinstance(position_val, float) and pd.isna(position_val)):
+                position_val = None
             conn.execute(
                 text("""
                     INSERT INTO lineups (match_id, team_id, player_id, jersey_number,
@@ -613,7 +625,7 @@ def _load_lineups(engine: Engine, lineups: pd.DataFrame) -> None:
                         if pd.notnull(row.get("jersey_number"))
                         else None
                     ),
-                    "position": row.get("position"),
+                    "position": position_val,
                     "is_starter": bool(row.get("is_starter", False)),
                 },
             )
