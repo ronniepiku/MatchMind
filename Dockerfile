@@ -20,7 +20,7 @@ WORKDIR /app
 FROM base AS deps
 
 # Copy project metadata first (layer caching)
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY src/football_analytics/__init__.py src/football_analytics/__init__.py
 
 # Install dependencies (cached unless pyproject.toml changes)
