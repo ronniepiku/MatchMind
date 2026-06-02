@@ -299,8 +299,17 @@ def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:
     available_cols = [c for c in schema_cols if c in events_df.columns]
     insert_df = events_df[available_cols].copy()
 
-    # Replace NaN with None for proper NULL handling
-    insert_df = insert_df.where(pd.notnull(insert_df), None)
+    # Replace NaN/NaT with None for proper NULL handling in integer columns
+    # pd.where alone doesn't reliably convert float NaN to None for int columns
+    for col in insert_df.columns:
+        insert_df[col] = insert_df[col].where(insert_df[col].notna(), None)
+    # Explicitly cast ID columns: convert float IDs (e.g., 5503.0) to int or None
+    int_cols = ["player_id", "team_id", "possession_team_id", "pass_recipient_id"]
+    for col in int_cols:
+        if col in insert_df.columns:
+            insert_df[col] = insert_df[col].apply(
+                lambda x: int(x) if pd.notnull(x) else None
+            )
 
     try:
         _copy_load_events(engine, insert_df, available_cols)
@@ -338,7 +347,7 @@ def _copy_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) -> None
         cursor = raw_conn.cursor()
         # Create temp staging table
         cursor.execute("""
-            CREATE TEMP TABLE _staging_events (LIKE events INCLUDING NOTHING)
+            CREATE TEMP TABLE _staging_events (LIKE events)
             ON COMMIT DROP
         """)
         # COPY into staging
@@ -367,6 +376,12 @@ def _executemany_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) 
     sql = f"INSERT INTO events ({cols_str}) VALUES ({params_str}) ON CONFLICT (event_id) DO NOTHING"
 
     records = df.to_dict("records")
+    # Ensure NaN values are converted to None for SQL NULL compatibility
+    import math
+    for record in records:
+        for key, val in record.items():
+            if isinstance(val, float) and math.isnan(val):
+                record[key] = None
     with engine.begin() as conn:
         conn.execute(text(sql), records)
 
