@@ -85,18 +85,25 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     df = raw_events.copy()
 
     # Rename core columns
+    # statsbombpy uses short names (type, team, player);
+    # json_normalize on raw JSON uses nested names (type_name, team_name, player_name)
     col_map: dict[str, str] = {
         "id": "event_id",
         "type": "event_type",
+        "type_name": "event_type",
         "team": "team_name",
+        "team_name": "team_name",
         "player": "player_name",
+        "player_name": "player_name",
         "period": "period",
         "timestamp": "timestamp",
         "minute": "minute",
         "second": "second",
         "possession": "possession",
         "possession_team": "possession_team_name",
+        "possession_team_name": "possession_team_name",
         "play_pattern": "play_pattern",
+        "play_pattern_name": "play_pattern",
         "duration": "duration",
         "under_pressure": "under_pressure",
     }
@@ -538,8 +545,15 @@ def _extract_players_from_events(raw_events: pd.DataFrame) -> pd.DataFrame:
     """Extract unique player IDs and names from event data."""
     if "player_id" not in raw_events.columns:
         return pd.DataFrame(columns=["player_id", "player_name"])
-    players = raw_events[["player_id", "player"]].dropna(subset=["player_id"]).copy()
-    players = players.rename(columns={"player": "player_name"})
+    # statsbombpy uses "player" column; json_normalize uses "player_name"
+    if "player_name" in raw_events.columns:
+        name_col = "player_name"
+    elif "player" in raw_events.columns:
+        name_col = "player"
+    else:
+        return pd.DataFrame(columns=["player_id", "player_name"])
+    players = raw_events[["player_id", name_col]].dropna(subset=["player_id"]).copy()
+    players = players.rename(columns={name_col: "player_name"})
     players["player_id"] = players["player_id"].astype(int)
     return players.drop_duplicates(subset=["player_id"])
 
