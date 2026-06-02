@@ -80,6 +80,7 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     - Extract location coordinates from nested lists.
     - Map StatsBomb column names to our schema columns.
     - Generate deterministic UUIDs for event_id if missing.
+    - Extract shot/pass/duel/dribble fields.
     - Vectorised operations for performance (no iterrows).
     """
     df = raw_events.copy()
@@ -144,7 +145,7 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
         df["location_x"] = None
         df["location_y"] = None
 
-    # Shot fields
+    # Shot xG
     if "shot_statsbomb_xg" in df.columns:
         df["xg"] = df["shot_statsbomb_xg"].astype("Float64")
     elif "shot_xg" in df.columns:
@@ -152,16 +153,88 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     else:
         df["xg"] = None
 
+    # Shot/pass/duel/dribble categorical fields
+    # statsbombpy uses "shot_outcome"; json_normalize uses "shot_outcome_name"
+    for schema_col, candidates in [
+        ("shot_outcome", ["shot_outcome", "shot_outcome_name"]),
+        ("shot_technique", ["shot_technique", "shot_technique_name"]),
+        ("shot_body_part", ["shot_body_part", "shot_body_part_name"]),
+        ("pass_outcome", ["pass_outcome", "pass_outcome_name"]),
+        ("pass_height", ["pass_height", "pass_height_name"]),
+        ("pass_type", ["pass_type", "pass_type_name"]),
+        ("duel_type", ["duel_type", "duel_type_name"]),
+        ("duel_outcome", ["duel_outcome", "duel_outcome_name"]),
+        ("dribble_outcome", ["dribble_outcome", "dribble_outcome_name"]),
+    ]:
+        found = False
+        for candidate in candidates:
+            if candidate in df.columns:
+                if candidate != schema_col:
+                    df[schema_col] = df[candidate]
+                found = True
+                break
+        if not found:
+            df[schema_col] = None
+
+    # Pass recipient ID
+    if "pass_recipient_id" not in df.columns:
+        df["pass_recipient_id"] = None
+
     # Pass fields (vectorised extraction)
     for col in ["pass_length", "pass_angle"]:
         if col not in df.columns:
             df[col] = None
 
+    # Key pass / assist detection from pass attributes
+    if "pass_shot_assist" in df.columns:
+        df["key_pass"] = df["pass_shot_assist"].fillna(False).astype(bool)
+    elif "key_pass" not in df.columns:
+        df["key_pass"] = False
+
+    if "pass_goal_assist" in df.columns:
+        df["assist"] = df["pass_goal_assist"].fillna(False).astype(bool)
+    elif "assist" not in df.columns:
+        df["assist"] = False
+
+    # End location (for passes, shots)
+    if "pass_end_location" in df.columns:
+        pass_end = df["pass_end_location"].apply(
+            lambda loc: pd.Series(
+                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
+            )
+        )
+        df["end_location_x"] = pass_end[0].astype("Float64")
+        df["end_location_y"] = pass_end[1].astype("Float64")
+    elif "shot_end_location" in df.columns:
+        shot_end = df["shot_end_location"].apply(
+            lambda loc: pd.Series(
+                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
+            )
+        )
+        df["end_location_x"] = shot_end[0].astype("Float64")
+        df["end_location_y"] = shot_end[1].astype("Float64")
+    else:
+        df["end_location_x"] = None
+        df["end_location_y"] = None
+
+    # Carry end location
+    if "carry_end_location" in df.columns:
+        carry_end = df["carry_end_location"].apply(
+            lambda loc: pd.Series(
+                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
+            )
+        )
+        df["carry_end_x"] = carry_end[0].astype("Float64")
+        df["carry_end_y"] = carry_end[1].astype("Float64")
+    else:
+        df["carry_end_x"] = None
+        df["carry_end_y"] = None
+
     # Ensure match_id is set
     df["match_id"] = match_id
 
     # Fill boolean defaults
-    for bool_col in ["under_pressure", "counterpress", "key_pass", "assist"]:
+    for bool_col in ["under_pressure", "counterpress"]:
         if bool_col in df.columns:
             df[bool_col] = df[bool_col].fillna(False).astype(bool)
         else:
@@ -180,12 +253,22 @@ def normalize_lineups(
     for team_name, lineup_df in lineups_dict.items():
         team_id = team_id_map.get(team_name, 0)
         for _, row in lineup_df.iterrows():
+            # Extract player country from nested structure
+            country = None
+            country_data = row.get("country")
+            if isinstance(country_data, dict):
+                country = country_data.get("name")
+            elif isinstance(country_data, str):
+                country = country_data
+
             records.append(
                 {
                     "match_id": match_id,
                     "team_id": team_id,
                     "player_id": row.get("player_id"),
                     "player_name": row.get("player_name"),
+                    "player_nickname": row.get("player_nickname"),
+                    "player_country": country,
                     "jersey_number": row.get("jersey_number"),
                     "position": (
                         row.get("positions", [{}])[0].get("position")
@@ -221,35 +304,58 @@ def init_schema(engine: Engine) -> None:
 
 
 def bulk_load_teams(engine: Engine, teams: pd.DataFrame) -> None:
-    """Upsert teams into the database."""
+    """Upsert teams into the database (with country if available)."""
     if teams.empty:
         return
     with engine.begin() as conn:
         for _, row in teams.iterrows():
+            country = row.get("country")
+            if pd.isna(country) if isinstance(country, float) else country is None:
+                country = None
             conn.execute(
                 text("""
-                    INSERT INTO teams (team_id, team_name)
-                    VALUES (:team_id, :team_name)
-                    ON CONFLICT (team_id) DO NOTHING
+                    INSERT INTO teams (team_id, team_name, country)
+                    VALUES (:team_id, :team_name, :country)
+                    ON CONFLICT (team_id) DO UPDATE SET
+                        country = COALESCE(teams.country, EXCLUDED.country)
                 """),
-                {"team_id": int(row["team_id"]), "team_name": row["team_name"]},
+                {
+                    "team_id": int(row["team_id"]),
+                    "team_name": row["team_name"],
+                    "country": country,
+                },
             )
 
 
 def bulk_load_players(engine: Engine, players: pd.DataFrame) -> None:
-    """Upsert players into the database."""
+    """Upsert players into the database (with nickname/country if available)."""
     if players.empty:
         return
-    records = players[["player_id", "player_name"]].drop_duplicates().to_dict("records")
+    records = players.drop_duplicates(subset=["player_id"]).to_dict("records")
     with engine.begin() as conn:
-        conn.execute(
-            text("""
-                INSERT INTO players (player_id, player_name)
-                VALUES (:player_id, :player_name)
-                ON CONFLICT (player_id) DO NOTHING
-            """),
-            records,
-        )
+        for record in records:
+            nickname = record.get("player_nickname") or record.get("nickname")
+            country = record.get("player_country") or record.get("country")
+            # Handle NaN values
+            if isinstance(nickname, float) and pd.isna(nickname):
+                nickname = None
+            if isinstance(country, float) and pd.isna(country):
+                country = None
+            conn.execute(
+                text("""
+                    INSERT INTO players (player_id, player_name, nickname, country)
+                    VALUES (:player_id, :player_name, :nickname, :country)
+                    ON CONFLICT (player_id) DO UPDATE SET
+                        nickname = COALESCE(players.nickname, EXCLUDED.nickname),
+                        country = COALESCE(players.country, EXCLUDED.country)
+                """),
+                {
+                    "player_id": int(record["player_id"]),
+                    "player_name": record["player_name"],
+                    "nickname": nickname,
+                    "country": country,
+                },
+            )
 
 
 def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:
@@ -283,17 +389,28 @@ def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:
         "play_pattern",
         "location_x",
         "location_y",
+        "end_location_x",
+        "end_location_y",
         "duration",
         "under_pressure",
         "xg",
         "shot_outcome",
+        "shot_technique",
+        "shot_body_part",
         "pass_length",
         "pass_angle",
+        "pass_height",
         "pass_outcome",
         "pass_recipient_id",
+        "pass_type",
         "key_pass",
         "assist",
         "xa",
+        "carry_end_x",
+        "carry_end_y",
+        "duel_type",
+        "duel_outcome",
+        "dribble_outcome",
         "counterpress",
     ]
     available_cols = [c for c in schema_cols if c in events_df.columns]
@@ -395,7 +512,7 @@ def ingest_competition(
     engine: Engine | None = None,
     max_matches: int | None = None,
 ) -> None:
-    """Full pipeline: fetch → normalize → load for a competition/season.
+    """Full pipeline: fetch -> normalize -> load for a competition/season.
 
     Args:
         competition_id: StatsBomb competition ID.
@@ -414,13 +531,17 @@ def ingest_competition(
     if max_matches:
         matches_df = matches_df.head(max_matches)
 
-    # 3. Extract and load teams
+    # 3. Extract and load teams (with country from match data)
     home_teams = matches_df[["home_team_id", "home_team"]].rename(
         columns={"home_team_id": "team_id", "home_team": "team_name"}
     )
     away_teams = matches_df[["away_team_id", "away_team"]].rename(
         columns={"away_team_id": "team_id", "away_team": "team_name"}
     )
+    # statsbombpy provides country columns for teams
+    if "home_team_country" in matches_df.columns:
+        home_teams["country"] = matches_df["home_team_country"].values
+        away_teams["country"] = matches_df["away_team_country"].values
     all_teams = pd.concat([home_teams, away_teams]).drop_duplicates(subset=["team_id"])
     bulk_load_teams(engine, all_teams)
 
@@ -448,7 +569,7 @@ def ingest_competition(
             events = _resolve_ids(events, engine)
             bulk_load_events(engine, events)
 
-            # Fetch and load lineups
+            # Fetch and load lineups (also enriches player data with nickname/country)
             lineups_raw = fetch_lineups(match_id)
             lineups = normalize_lineups(lineups_raw, match_id, team_id_map)
             _load_lineups(engine, lineups)
@@ -523,17 +644,45 @@ def _load_competition(
 def _load_matches(
     engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int
 ) -> None:
-    """Load match records."""
+    """Load match records with all available metadata."""
     with engine.begin() as conn:
         for _, row in matches_df.iterrows():
+            # Extract kick_off
+            kick_off = row.get("kick_off")
+            if pd.isna(kick_off) if isinstance(kick_off, float) else kick_off is None:
+                kick_off = None
+
+            # Stadium: statsbombpy gives dict or string; async gives "stadium_name"
+            stadium = row.get("stadium_name") or row.get("stadium")
+            if isinstance(stadium, dict):
+                stadium = stadium.get("name")
+            if pd.isna(stadium) if isinstance(stadium, float) else stadium is None:
+                stadium = None
+
+            # Referee: statsbombpy gives dict or string; async gives "referee_name"
+            referee = row.get("referee_name") or row.get("referee")
+            if isinstance(referee, dict):
+                referee = referee.get("name")
+            if pd.isna(referee) if isinstance(referee, float) else referee is None:
+                referee = None
+
+            # Competition stage
+            comp_stage = row.get("competition_stage_name") or row.get("competition_stage")
+            if isinstance(comp_stage, dict):
+                comp_stage = comp_stage.get("name")
+            if pd.isna(comp_stage) if isinstance(comp_stage, float) else comp_stage is None:
+                comp_stage = None
+
             conn.execute(
                 text("""
                     INSERT INTO matches (match_id, competition_id, season_id, match_date,
-                                        home_team_id, away_team_id, home_score, away_score,
-                                        match_week)
+                                        kick_off, home_team_id, away_team_id,
+                                        home_score, away_score, match_week,
+                                        stadium, referee, competition_stage)
                     VALUES (:match_id, :competition_id, :season_id, :match_date,
-                            :home_team_id, :away_team_id, :home_score, :away_score,
-                            :match_week)
+                            :kick_off, :home_team_id, :away_team_id,
+                            :home_score, :away_score, :match_week,
+                            :stadium, :referee, :competition_stage)
                     ON CONFLICT (match_id) DO NOTHING
                 """),
                 {
@@ -541,6 +690,7 @@ def _load_matches(
                     "competition_id": competition_id,
                     "season_id": season_id,
                     "match_date": row["match_date"],
+                    "kick_off": kick_off,
                     "home_team_id": int(row["home_team_id"]),
                     "away_team_id": int(row["away_team_id"]),
                     "home_score": int(row.get("home_score", 0)),
@@ -550,6 +700,9 @@ def _load_matches(
                         if pd.notnull(row.get("match_week"))
                         else None
                     ),
+                    "stadium": stadium,
+                    "referee": referee,
+                    "competition_stage": comp_stage,
                 },
             )
 
@@ -592,11 +745,17 @@ def _load_lineups(engine: Engine, lineups: pd.DataFrame) -> None:
 
     Also ensures all lineup players exist in the players table (some subs
     never appear in events and would otherwise cause FK violations).
+    Passes nickname/country from lineup data to enrich player records.
     """
     if lineups.empty:
         return
-    # Insert any lineup players missing from the players table
-    lineup_players = lineups[["player_id", "player_name"]].dropna(subset=["player_id"]).copy()
+    # Insert any lineup players (with nickname/country) missing from the players table
+    cols_for_players = ["player_id", "player_name"]
+    if "player_nickname" in lineups.columns:
+        cols_for_players.append("player_nickname")
+    if "player_country" in lineups.columns:
+        cols_for_players.append("player_country")
+    lineup_players = lineups[cols_for_players].dropna(subset=["player_id"]).copy()
     lineup_players["player_id"] = lineup_players["player_id"].astype(int)
     lineup_players = lineup_players.drop_duplicates(subset=["player_id"])
     bulk_load_players(engine, lineup_players)

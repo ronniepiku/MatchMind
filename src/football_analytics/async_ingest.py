@@ -143,13 +143,17 @@ async def ingest_competition_async(
 
         logger.info("Fetched %d matches, processing with concurrency=%d", len(matches_df), concurrency)
 
-        # 2. Extract and load teams
+        # 2. Extract and load teams (with country if available)
         home_teams = matches_df[["home_team.home_team_id", "home_team.home_team_name"]].rename(
             columns={"home_team.home_team_id": "team_id", "home_team.home_team_name": "team_name"}
         )
         away_teams = matches_df[["away_team.away_team_id", "away_team.away_team_name"]].rename(
             columns={"away_team.away_team_id": "team_id", "away_team.away_team_name": "team_name"}
         )
+        # Extract country from json_normalize nested columns
+        if "home_team.country.name" in matches_df.columns:
+            home_teams["country"] = matches_df["home_team.country.name"].values
+            away_teams["country"] = matches_df["away_team.country.name"].values
         all_teams = pd.concat([home_teams, away_teams]).drop_duplicates(subset=["team_id"])
         bulk_load_teams(engine, all_teams)
 
@@ -165,6 +169,9 @@ async def ingest_competition_async(
             "competition.competition_name": "competition_name",
             "season.season_name": "season_name",
             "competition.country_name": "country_name",
+            "stadium.name": "stadium_name",
+            "referee.name": "referee_name",
+            "competition_stage.name": "competition_stage_name",
         })
         _load_competition(engine, matches_compat, competition_id, season_id)
         _load_matches(engine, matches_compat, competition_id, season_id)
