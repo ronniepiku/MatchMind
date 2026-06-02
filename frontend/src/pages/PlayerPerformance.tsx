@@ -68,14 +68,14 @@ export default function PlayerPerformance() {
             label: "xG/90",
             sortable: true,
             align: "right",
-            render: (row) => <span className="tabular-nums">{row.xg_per_90.toFixed(2)}</span>,
+            render: (row) => <span className="tabular-nums">{(row.xg_per_90 ?? 0).toFixed(2)}</span>,
         },
         {
             key: "xa_per_90",
             label: "xA/90",
             sortable: true,
             align: "right",
-            render: (row) => <span className="tabular-nums">{row.xa_per_90.toFixed(2)}</span>,
+            render: (row) => <span className="tabular-nums">{(row.xa_per_90 ?? 0).toFixed(2)}</span>,
         },
         {
             key: "rating",
@@ -83,7 +83,7 @@ export default function PlayerPerformance() {
             sortable: true,
             align: "right",
             render: (row) => (
-                <span className="tabular-nums font-semibold">{row.rating.toFixed(1)}</span>
+                <span className="tabular-nums font-semibold">{(row.rating ?? 0).toFixed(1)}</span>
             ),
         },
     ];
@@ -151,8 +151,8 @@ export default function PlayerPerformance() {
                         <KPICard label="Minutes" value={summary.minutes.toLocaleString()} />
                         <KPICard label="Goals" value={summary.goals} />
                         <KPICard label="Assists" value={summary.assists} />
-                        <KPICard label="xG/90" value={summary.xg_per_90.toFixed(2)} />
-                        <KPICard label="xA/90" value={summary.xa_per_90.toFixed(2)} />
+                        <KPICard label="xG/90" value={(summary.xg_per_90 ?? 0).toFixed(2)} />
+                        <KPICard label="xA/90" value={(summary.xa_per_90 ?? 0).toFixed(2)} />
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -173,12 +173,12 @@ export default function PlayerPerformance() {
 
                     {/* Additional stats */}
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                        <KPICard label="Pass Accuracy" value={`${summary.pass_accuracy.toFixed(1)}%`} />
+                        <KPICard label="Pass Accuracy" value={`${(summary.pass_accuracy ?? 0).toFixed(1)}%`} />
                         <KPICard label="Passes Completed" value={summary.passes_completed} />
                         <KPICard label="Tackles Won" value={summary.tackles_won} />
                         <KPICard label="Interceptions" value={summary.interceptions} />
                         <KPICard label="Pressures" value={summary.pressures} />
-                        <KPICard label="Total xG" value={summary.xg.toFixed(2)} />
+                        <KPICard label="Total xG" value={(summary.xg ?? 0).toFixed(2)} />
                     </div>
                 </div>
             )}

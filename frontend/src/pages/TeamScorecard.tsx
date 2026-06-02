@@ -52,7 +52,7 @@ export default function TeamScorecard() {
             label: "xG",
             sortable: true,
             align: "right",
-            render: (row) => <span className="tabular-nums">{row.xg.toFixed(2)}</span>,
+            render: (row) => <span className="tabular-nums">{(row.xg ?? 0).toFixed(2)}</span>,
         },
         {
             key: "conversion_rate",
@@ -60,7 +60,7 @@ export default function TeamScorecard() {
             sortable: true,
             align: "right",
             render: (row) => (
-                <span className="tabular-nums">{(row.conversion_rate * 100).toFixed(1)}%</span>
+                <span className="tabular-nums">{((row.conversion_rate ?? 0) * 100).toFixed(1)}%</span>
             ),
         },
     ];
@@ -73,7 +73,7 @@ export default function TeamScorecard() {
             sortable: true,
             align: "right",
             render: (row) => (
-                <span className="tabular-nums font-medium">{row.value.toFixed(2)}</span>
+                <span className="tabular-nums font-medium">{(row.value ?? 0).toFixed(2)}</span>
             ),
         },
         {
@@ -83,7 +83,7 @@ export default function TeamScorecard() {
             align: "right",
             render: (row) => (
                 <span className="tabular-nums text-[var(--text-muted)]">
-                    {row.league_avg.toFixed(2)}
+                    {(row.league_avg ?? 0).toFixed(2)}
                 </span>
             ),
         },
@@ -153,7 +153,7 @@ export default function TeamScorecard() {
                             <KPICard
                                 key={kpi.label}
                                 label={kpi.label}
-                                value={kpi.value.toFixed(kpi.unit === "%" ? 1 : 2)}
+                                value={(kpi.value ?? 0).toFixed(kpi.unit === "%" ? 1 : 2)}
                                 unit={kpi.unit}
                                 change={kpi.change}
                             />

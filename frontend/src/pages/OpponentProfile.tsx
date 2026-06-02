@@ -35,7 +35,7 @@ export default function OpponentProfile() {
             align: "right",
             render: (row) => (
                 <span className="tabular-nums">
-                    {(row.success_rate * 100).toFixed(1)}%
+                    {((row.success_rate ?? 0) * 100).toFixed(1)}%
                 </span>
             ),
         },
@@ -45,7 +45,7 @@ export default function OpponentProfile() {
             sortable: true,
             align: "right",
             render: (row) => (
-                <span className="tabular-nums font-medium">{row.xg_per_attack.toFixed(3)}</span>
+                <span className="tabular-nums font-medium">{(row.xg_per_attack ?? 0).toFixed(3)}</span>
             ),
         },
     ];
@@ -60,14 +60,14 @@ export default function OpponentProfile() {
             label: "xG",
             sortable: true,
             align: "right",
-            render: (row) => <span className="tabular-nums">{row.xg.toFixed(2)}</span>,
+            render: (row) => <span className="tabular-nums">{(row.xg ?? 0).toFixed(2)}</span>,
         },
         {
             key: "xa",
             label: "xA",
             sortable: true,
             align: "right",
-            render: (row) => <span className="tabular-nums">{row.xa.toFixed(2)}</span>,
+            render: (row) => <span className="tabular-nums">{(row.xa ?? 0).toFixed(2)}</span>,
         },
         { key: "minutes", label: "Mins", sortable: true, align: "right" },
         {
@@ -78,7 +78,7 @@ export default function OpponentProfile() {
             render: (row) => {
                 const variant =
                     row.threat_rating >= 8 ? "danger" : row.threat_rating >= 6 ? "warning" : "default";
-                return <Badge variant={variant}>{row.threat_rating.toFixed(1)}</Badge>;
+                return <Badge variant={variant}>{(row.threat_rating ?? 0).toFixed(1)}</Badge>;
             },
         },
     ];
