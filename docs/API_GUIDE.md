@@ -2,13 +2,15 @@
 
 ## Overview
 
-MatchMind provides a **FastAPI** REST layer for external integrations. The API is fully documented with Pydantic validation, CORS support, and automatic OpenAPI documentation.
+MatchMind provides a **FastAPI** REST layer that serves the React frontend dashboard and supports external integrations. The API is fully documented with Pydantic validation, CORS support, and automatic OpenAPI documentation.
 
 **Base URL**: `http://localhost:8080/api/v1` (or configured in `.env`)
 
 **OpenAPI Docs**: `http://localhost:8080/docs`
 
 **ReDoc**: `http://localhost:8080/redoc`
+
+**Primary Consumer**: The React frontend at `http://localhost:5173` (dev) or GitHub Pages (production)
 
 ## Authentication & Security
 
@@ -25,13 +27,13 @@ CORS is configured via environment variables:
 
 ```bash
 # In .env
-CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+CORS_ORIGINS=http://localhost:5173,https://yourdomain.github.io
 CORS_METHODS=GET,POST,OPTIONS
 CORS_HEADERS=Content-Type,Authorization
 ```
 
 Default (if not set):
-- Origins: `localhost:*` (all localhost ports)
+- Origins: `http://localhost:5173` (Vite dev server), `https://*.github.io` (GitHub Pages)
 - Methods: `GET,POST`
 - Credentials: Not allowed
 

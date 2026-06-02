@@ -1,0 +1,13 @@
+{
+    "name": "matchmind",
+    "private": true,
+    "description": "Premier League performance analytics platform",
+    "scripts": {
+        "dev": "npm run dev --prefix frontend",
+        "build": "npm run build --prefix frontend",
+        "preview": "npm run preview --prefix frontend",
+        "lint": "npm run lint --prefix frontend",
+        "type-check": "npm run type-check --prefix frontend",
+        "install:frontend": "cd frontend && npm install"
+    }
+}

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -13,15 +14,28 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(_PROJECT_ROOT / ".env")
 
 
+def _get_password() -> str:
+    """Get database password from environment, failing clearly if unset."""
+    pw = os.getenv("POSTGRES_PASSWORD")
+    if not pw:
+        raise RuntimeError(
+            "POSTGRES_PASSWORD environment variable is required. "
+            "Set it in your .env file or export it before running."
+        )
+    return pw
+
+
 @dataclass(frozen=True)
 class DatabaseConfig:
     """PostgreSQL connection parameters."""
 
-    host: str = os.getenv("POSTGRES_HOST", "localhost")
-    port: int = int(os.getenv("POSTGRES_PORT", "5432"))
-    db: str = os.getenv("POSTGRES_DB", "football_analytics")
-    user: str = os.getenv("POSTGRES_USER", "analyst")
-    password: str = os.getenv("POSTGRES_PASSWORD", "changeme")
+    host: str = field(default_factory=lambda: os.getenv("POSTGRES_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.getenv("POSTGRES_PORT", "5432")))
+    db: str = field(
+        default_factory=lambda: os.getenv("POSTGRES_DB", "football_analytics")
+    )
+    user: str = field(default_factory=lambda: os.getenv("POSTGRES_USER", "analyst"))
+    password: str = field(default_factory=_get_password)
 
     @property
     def url(self) -> str:
@@ -33,12 +47,27 @@ class DatabaseConfig:
 class AppConfig:
     """Application-wide settings."""
 
-    db: DatabaseConfig = DatabaseConfig()
-    data_dir: Path = _PROJECT_ROOT / "data"
-    raw_dir: Path = _PROJECT_ROOT / "data" / "raw"
-    processed_dir: Path = _PROJECT_ROOT / "data" / "processed"
-    dash_debug: bool = os.getenv("DASH_DEBUG", "false").lower() == "true"
-    dash_port: int = int(os.getenv("DASH_PORT", "8050"))
+    db: DatabaseConfig = field(default_factory=DatabaseConfig)
+    data_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data")
+    raw_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data" / "raw")
+    processed_dir: Path = field(
+        default_factory=lambda: _PROJECT_ROOT / "data" / "processed"
+    )
+    dash_debug: bool = field(
+        default_factory=lambda: os.getenv("DASH_DEBUG", "false").lower() == "true"
+    )
+    dash_port: int = field(default_factory=lambda: int(os.getenv("DASH_PORT", "8050")))
 
 
-config = AppConfig()
+class _LazyConfig:
+    """Lazy config wrapper — only instantiates AppConfig when first accessed."""
+
+    _instance: AppConfig | None = None
+
+    def __getattr__(self, name: str) -> Any:
+        if _LazyConfig._instance is None:
+            _LazyConfig._instance = AppConfig()
+        return getattr(_LazyConfig._instance, name)
+
+
+config: Any = _LazyConfig()

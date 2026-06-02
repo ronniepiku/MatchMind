@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] — 2026-05-20
+
+### Added — Frontend Dashboard
+
+- **React + TypeScript frontend** (`frontend/`): Complete replacement of Plotly Dash with a custom-built, production-grade analytics dashboard deployed on GitHub Pages.
+  - React 19, TypeScript 6, Vite 8, Tailwind CSS 4
+  - D3.js custom football pitch visualisations (StatsBomb 120×80 coordinates)
+  - Recharts for standard chart types (line, bar, pie)
+  - TanStack Query for server state with 5-min staleTime
+  - Dark/light theme system with Premier League-inspired colour palette
+  - Canvas-based pressure heatmaps with kernel density estimation
+  - Custom SVG player radar charts
+  - 7 pages: Dashboard, Opponent Profile, Player Performance, Team Scorecard, Match Analysis, Player Comparison, Simulation
+  - Client-side routing via React Router v7 with GitHub Pages SPA compatibility
+
+### Added — CI/CD
+
+- **GitHub Pages deployment** (`.github/workflows/deploy-frontend.yml`): Automatic frontend deployment on push to main
+- **Root `package.json`**: Convenience scripts (`npm run dev`, `npm run build`) that delegate to `frontend/`
+
+### Changed
+
+- `src/football_analytics/api.py`: Expanded API with new endpoints for frontend consumption (`/teams`, `/seasons`, `/players`, `/matches`, `/data-availability`, `/opponent/report`, `/player/summary`, `/player/rolling-form`, `/player/radar`, `/player/squad-comparison`, `/team/scorecard`, `/match/shots`, `/match/xg-timeline`, `/match/passing-network`, `/match/pressure-map`, `/player/similar`). Updated CORS origins.
+- `README.md`: Rewritten to reflect React frontend architecture, updated Quick Start, project structure, and Dashboard sections
+- `docs/API_GUIDE.md`: Updated to reference frontend as primary API consumer
+- `docs/PERFORMANCE.md`: Replaced Dash-specific optimisations with frontend layer (TanStack Query, code splitting)
+- `docs/TECHNICAL_APPENDIX.md`: Updated component references
+
+### Removed
+
+- `src/football_analytics/dashboard/` — Legacy Plotly Dash application (replaced by `frontend/`)
+
+---
+
 ## [0.3.0] — 2026-05-15
 
 ### Added — Analysis Modules

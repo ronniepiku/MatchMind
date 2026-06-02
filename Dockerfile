@@ -34,8 +34,12 @@ COPY src/ src/
 COPY data/ data/
 COPY notebooks/ notebooks/
 
-# Expose dashboard port
-EXPOSE 8050
+# Run as non-root user
+RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
+USER appuser
 
-# Default: run the dashboard
-CMD ["uv", "run", "fb-dashboard"]
+# Expose API port
+EXPOSE 8080
+
+# Default: run the API server
+CMD ["uv", "run", "fb-api"]

@@ -30,8 +30,15 @@ from football_analytics.config import config
 
 logger = logging.getLogger(__name__)
 
-# Cache directory
-CACHE_DIR = config.processed_dir / "cache"
+# Cache directory — initialized lazily via _get_cache_dir()
+CACHE_DIR: Path = None  # type: ignore[assignment]
+
+
+def _get_cache_dir() -> Path:
+    global CACHE_DIR
+    if CACHE_DIR is None:
+        CACHE_DIR = config.processed_dir / "cache"
+    return CACHE_DIR
 
 
 def _cache_key(name: str, **kwargs: Any) -> str:
@@ -43,6 +50,7 @@ def _cache_key(name: str, **kwargs: Any) -> str:
 
 def _cache_path(name: str, key: str) -> Path:
     """Get the file path for a cached result."""
+    _get_cache_dir()
     return CACHE_DIR / f"{name}_{key}.parquet"
 
 
@@ -63,6 +71,7 @@ def cached_query(
     Returns:
         Cached or freshly-queried DataFrame.
     """
+    _get_cache_dir()
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     key = _cache_key(name, **kwargs)
     path = _cache_path(name, key)
@@ -74,7 +83,9 @@ def cached_query(
             logger.debug("Cache HIT: %s (age=%.0fs)", name, age)
             return pd.read_parquet(path)
         else:
-            logger.debug("Cache STALE: %s (age=%.0fs > ttl=%ds)", name, age, ttl_seconds)
+            logger.debug(
+                "Cache STALE: %s (age=%.0fs > ttl=%ds)", name, age, ttl_seconds
+            )
 
     # Cache miss — execute query
     logger.debug("Cache MISS: %s — executing query", name)
@@ -87,7 +98,10 @@ def cached_query(
         df.to_parquet(path, compression="snappy", index=False)
         logger.info(
             "Cached %s: %d rows in %.1fms (query took %.1fms)",
-            name, len(df), (time.perf_counter() - start - query_time) * 1000, query_time * 1000,
+            name,
+            len(df),
+            (time.perf_counter() - start - query_time) * 1000,
+            query_time * 1000,
         )
 
     return df
@@ -103,6 +117,7 @@ def invalidate_cache(name: str | None = None) -> int:
     Returns:
         Number of cache files deleted.
     """
+    _get_cache_dir()
     if not CACHE_DIR.exists():
         return 0
 
@@ -120,6 +135,7 @@ def invalidate_cache(name: str | None = None) -> int:
 
 def cache_stats() -> dict[str, Any]:
     """Get cache statistics: file count, total size, oldest/newest entries."""
+    _get_cache_dir()
     if not CACHE_DIR.exists():
         return {"files": 0, "total_size_mb": 0, "oldest": None, "newest": None}
 
@@ -145,12 +161,16 @@ def precompute_cache(engine: Any, season_id: int) -> None:
     """
     from sqlalchemy import text as sql_text
 
-    from football_analytics.analysis.opponent_profile import get_opponent_attack_patterns
+    from football_analytics.analysis.opponent_profile import (
+        get_opponent_attack_patterns,
+    )
 
     # Cache all team stats for the season
     with engine.connect() as conn:
         teams = pd.read_sql(
-            sql_text("SELECT DISTINCT team_id FROM mv_team_season_stats WHERE season_id = :sid"),
+            sql_text(
+                "SELECT DISTINCT team_id FROM mv_team_season_stats WHERE season_id = :sid"
+            ),
             conn,
             params={"sid": season_id},
         )

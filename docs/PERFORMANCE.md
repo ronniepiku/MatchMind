@@ -58,13 +58,13 @@ idx_events_location      -- Spatial queries (partial: WHERE location_x IS NOT NU
 3. **Parquet cache** ✅ IMPLEMENTED — TTL-based cache with SHA-256 keying and snappy compression
 4. **PyArrow backend** — Use `pd.ArrowDtype` for 2-3x memory reduction on string columns
 5. **Lazy evaluation** — Fetch only needed columns from DB with explicit SELECT lists
-6. **Caching** — Parquet file cache + `dcc.Store` for dashboard state
+6. **Caching** — Parquet file cache for backend data layer
 
-### C. Dashboard Layer
-1. **Materialised views** ✅ — Dashboard reads from pre-computed views (<1ms vs 15ms)
-2. **Callback debouncing** — Prevent redundant DB queries on rapid input changes
-3. **Server-side caching** — Parquet cache layer with 5-minute TTL
-4. **Pagination** — Large tables paginated client-side with Dash DataTable
+### C. Frontend Layer
+1. **TanStack Query** — Client-side cache with 5-min staleTime, deduplication, background refetch
+2. **Code splitting** — Vite manual chunks (react, charts, d3) for parallel loading
+3. **Lazy routes** — React.lazy page components loaded on navigation
+4. **Virtualised tables** — Client-side sorting/pagination for large datasets
 
 ### D. Ingestion Layer
 1. **COPY protocol** ✅ — 8x faster than executemany for typical match event volumes
@@ -165,4 +165,3 @@ Cache features:
 - TTL-based invalidation (configurable per query)
 - Manual invalidation API for post-ingestion refresh
 - Pre-warming function for entire seasons
-

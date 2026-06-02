@@ -3,6 +3,8 @@
 ## Overview
 Comprehensive reorganization of test infrastructure and creation of complete documentation suite for MatchMind v0.3.1.
 
+> **Note**: Since v0.3.1, the dashboard has been migrated from Plotly Dash to a custom React + TypeScript frontend (see `frontend/`). References to `dashboard/app.py` in this document are historical.
+
 **Completion Date**: May 19, 2026
 **Status**: ✅ Complete
 

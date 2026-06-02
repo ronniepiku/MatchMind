@@ -8,6 +8,7 @@ Match Mind is a **Production-grade football data analysis pipeline**. From raw S
 
 ## Key Features
 
+- **React analytics dashboard**: Custom-built UI deployed on GitHub Pages with D3 pitch visualisations, dark/light theme
 - **High-performance data pipeline**: COPY-protocol bulk loading + async concurrent fetching (3-4x faster)
 - **Core analyses**: Opponent profiling, player performance, xG/xA, passing networks, pressing heatmaps
 - **Custom xG model**: Trainable logistic regression + gradient boosting upgrade with hyperparameter tuning
@@ -19,12 +20,9 @@ Match Mind is a **Production-grade football data analysis pipeline**. From raw S
 - **Spatial dominance**: Voronoi tessellation, passing lanes, defensive coverage gaps
 - **Video timestamp alignment**: Event-to-broadcast sync, FFmpeg clip generation, SRT subtitles
 - **Tracking data integration**: Pitch control, physical metrics, and event synchronisation
-- **FastAPI REST layer**: Full API for external integrations (Tableau, mobile, Slack bots)
-- **Interactive dashboard**: Plotly Dash with opponent scouting and player performance views
+- **FastAPI REST layer**: Full API for external integrations and the React frontend
 - **Automated PDF reports**: Match reports, opponent scouts, and player profiles via Jinja2 + WeasyPrint
 - **Parquet cache layer**: Instant notebook/dashboard loads bypassing database for read-heavy workflows
-- **Materialised views**: Pre-computed SQL aggregates refreshed after each ingestion
-- **Table partitioning**: Event table partitioned by season_id for scalable query performance
 - **Performance-optimised**: Indexed queries (70x speedup), COPY protocol (5-10x), async I/O (3-4x)
 - **Production engineering**: Type hints, unit tests, CI/CD, Docker, modular package structure
 
@@ -34,6 +32,7 @@ Match Mind is a **Production-grade football data analysis pipeline**. From raw S
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) package manager
+- Node.js 20+ and npm
 - PostgreSQL 14+ (or use Docker Compose)
 
 ### Setup
@@ -43,8 +42,11 @@ Match Mind is a **Production-grade football data analysis pipeline**. From raw S
 git clone https://github.com/ronniepiku/MatchMind.git
 cd MatchMind
 
-# Install dependencies with uv
+# Install Python dependencies
 uv sync
+
+# Install frontend dependencies
+npm run install:frontend
 
 # Start PostgreSQL (via Docker)
 docker compose up -d db
@@ -58,12 +60,16 @@ uv run fb-ingest --max-matches 3
 # Or use async ingestion (3-4x faster for full datasets)
 uv run fb-ingest-async --max-matches 3
 
-# Run tests
+# Run backend tests
 uv run pytest
 
-# Launch dashboard
-uv run fb-dashboard
-# → Open http://localhost:8050
+# Start the API server
+uv run fb-api
+# → http://localhost:8080/docs
+
+# Start the frontend dashboard (in a separate terminal)
+npm run dev
+# → http://localhost:5173
 
 # Generate a PDF report
 uv run fb-report --type opponent --team-id 771 --season-id 106
@@ -82,23 +88,37 @@ echo "POSTGRES_HOST=localhost" >> .env
 # Ingest and run
 uv sync
 uv run fb-ingest --competition-id 43 --season-id 106
-uv run fb-dashboard
+uv run fb-api
 ```
 
 ### Full Docker Environment
 
 ```bash
 docker compose up --build
-# Dashboard: http://localhost:8050
+# API: http://localhost:8080/docs
 # Postgres: localhost:5433
+# Frontend: run `npm run dev` separately (or deploy to GitHub Pages)
 ```
 
 ## Project Structure
 
 ```
 MatchMind/
+├── frontend/                    # React + TypeScript dashboard (Vite)
+│   ├── src/
+│   │   ├── api/                 # HTTP client, types, endpoint functions
+│   │   ├── components/
+│   │   │   ├── charts/          # Recharts + D3 visualisations
+│   │   │   ├── layout/          # Sidebar, header, page wrapper
+│   │   │   ├── pitch/           # SVG football pitch (StatsBomb coords)
+│   │   │   └── shared/          # DataTable, cards, loading states
+│   │   ├── hooks/               # useTheme, custom hooks
+│   │   ├── pages/               # Route-level page components
+│   │   └── styles/              # Tailwind CSS + custom properties theme
+│   ├── vite.config.ts           # Build config (GitHub Pages base path)
+│   └── package.json             # Frontend dependencies
 ├── src/football_analytics/
-│   ├── __init__.py              # Package root (v0.3.0)
+│   ├── __init__.py              # Package root
 │   ├── config.py                # Environment & settings
 │   ├── ingest.py                # Sync ingestion (COPY protocol)
 │   ├── async_ingest.py          # Async concurrent ingestion (httpx)
@@ -123,26 +143,20 @@ MatchMind/
 │   │   ├── development.py       # Player development tracking
 │   │   ├── spatial.py           # Voronoi tessellation & space control
 │   │   └── video_alignment.py   # Video timestamp sync & clip generation
-│   ├── dashboard/
-│   │   └── app.py               # Plotly Dash application
 │   └── reports/
 │       ├── pdf_report.py        # Automated PDF generation
 │       └── templates/           # Jinja2 HTML report templates
 ├── tests/                       # Unit tests (pytest)
-│   ├── test_ingest.py           # Ingestion tests
-│   ├── test_analysis.py         # Visualisation tests
-│   ├── test_enhancements.py     # xG model, similarity, cache, tracking tests
-│   └── test_v030_enhancements.py # v0.3 module tests (chains, simulation, API)
 ├── notebooks/                   # Reproducible Jupyter analyses
 ├── docs/                        # Technical docs
-│   ├── PERFORMANCE.md           # Profiling results & optimisation notes
-│   ├── VIDEO_INTEGRATION.md     # Video sync & clip extraction guide
-│   └── TECHNICAL_APPENDIX.md    # Methods, metrics, assumptions
 ├── data/                        # Raw + processed + cache (gitignored)
-├── .github/workflows/ci.yml     # GitHub Actions CI
+├── .github/workflows/
+│   ├── ci.yml                   # Backend CI (lint, type-check, test)
+│   └── deploy-frontend.yml      # GitHub Pages frontend deployment
 ├── Dockerfile                   # Container build
 ├── docker-compose.yml           # Full stack orchestration
-├── pyproject.toml               # Dependencies (uv/hatch)
+├── pyproject.toml               # Python dependencies (uv/hatch)
+├── package.json                 # Root convenience scripts → frontend/
 └── README.md                    # This file
 ```
 
@@ -169,11 +183,42 @@ MatchMind/
 
 ## Dashboard
 
-Three interactive views accessible at `http://localhost:8050`:
+A custom React + TypeScript analytics dashboard built for performance analysts, deployed on **GitHub Pages**.
 
-1. **Opponent Profile** — Select a team and season to generate a scouting report with attack pattern breakdown, defensive zone analysis, and key player identification.
-2. **Player Performance** — Individual player season summary, rolling form chart, and squad-level comparison table.
-3. **Team Scorecard** — Holistic team performance dashboard with KPI cards (dangerous possession %, box entry rate, xG/chain), possession style breakdown pie chart, defensive actions by zone, set-piece efficiency, and transition metrics.
+**Stack**: React 19, TypeScript 6, Vite 8, Tailwind CSS 4, D3.js, Recharts, TanStack Query
+
+**Live**: `https://<username>.github.io/MatchMind/`
+
+### Pages
+
+1. **Dashboard** — Overview with data availability status and navigation to all modules
+2. **Opponent Profile** — Scouting report with attack patterns, defensive shape, key player threats
+3. **Player Performance** — Individual season summary, rolling form chart, radar percentiles, squad comparison
+4. **Team Scorecard** — KPI cards, possession style breakdown, defensive zone analysis, set-piece efficiency
+5. **Match Analysis** — Shot map (D3 pitch), xG timeline, passing network, pressure heatmap (canvas + KDE)
+6. **Player Comparison** — Side-by-side similarity search for recruitment shortlisting
+7. **Simulation** — Monte Carlo match outcome prediction with scoreline distribution chart
+
+### Features
+
+- Dark/light theme with Premier League-inspired colour palette
+- Responsive sidebar navigation with collapsible menu
+- Custom SVG football pitch rendering (StatsBomb 120×80 coordinates)
+- Canvas-based pressure heatmaps with kernel density estimation
+- Sortable data tables with per-90 metrics
+- Loading skeletons and error states throughout
+- Client-side routing compatible with GitHub Pages (SPA redirect via 404.html)
+
+### Running Locally
+
+```bash
+# From project root
+npm run dev
+# → http://localhost:5173
+
+# Or from frontend/ directly
+cd frontend && npm run dev
+```
 
 ## Report Generation
 
@@ -200,10 +245,10 @@ Key wins:
 - **70x query speedup** via composite indexes matching analytical query patterns
 - **5-10x faster ingestion** via PostgreSQL COPY protocol (staging table + upsert)
 - **3-4x faster downloads** via async concurrent fetching (httpx, concurrency=8)
-- **Instant dashboard loads** via materialised views (pre-computed aggregates)
 - **50ms data access** via Parquet cache layer (vs 800ms from PostgreSQL)
+- **Sub-second frontend** — TanStack Query with 5-min staleTime, code splitting, lazy routes
 - **Vectorised Python** — pandas operations replace row-level loops throughout
-- **Connection pooling** — Reuse connections across dashboard callbacks
+- **Connection pooling** — Reuse connections across API endpoints
 
 ## Video Integration
 
@@ -265,22 +310,24 @@ profile = compute_team_possession_profile(chains_df, team_id=771)
 
 ## REST API
 
-Launch the FastAPI server for external integrations:
+Launch the FastAPI server (serves data to the React frontend and external integrations):
 
 ```bash
 uv run fb-api
-# → API docs at http://localhost:8000/docs
+# → API docs at http://localhost:8080/docs
 
 # Example: predict xG
-curl -X POST http://localhost:8000/api/v1/xg/predict \
+curl -X POST http://localhost:8080/api/v1/xg/predict \
   -H "Content-Type: application/json" \
   -d '{"location_x": 105, "location_y": 40, "shot_body_part": "Foot"}'
 
 # Example: simulate match
-curl -X POST http://localhost:8000/api/v1/simulation/match \
+curl -X POST http://localhost:8080/api/v1/simulation/match \
   -H "Content-Type: application/json" \
   -d '{"home_xg": 1.8, "away_xg": 1.2, "home_team": "Liverpool", "away_team": "Everton"}'
 ```
+
+See [docs/API_GUIDE.md](docs/API_GUIDE.md) for the full endpoint reference.
 
 ## Player Similarity
 
@@ -296,8 +343,9 @@ similar = find_similar_players(target_player_id=5503, player_vectors=vectors, po
 ## Development
 
 ```bash
-# Install with dev dependencies
+# Install all dependencies (Python + frontend)
 uv sync --all-extras
+npm run install:frontend
 
 # Run linter
 uv run ruff check src/ tests/
@@ -305,11 +353,18 @@ uv run ruff check src/ tests/
 # Run type checker
 uv run mypy src/football_analytics/
 
-# Run tests with coverage
+# Run backend tests with coverage
 uv run pytest --cov-report=html
 
 # Format code
 uv run ruff format src/ tests/
+
+# Frontend type-check + lint
+npm run type-check
+npm run lint
+
+# Production build (outputs to frontend/dist/)
+npm run build
 ```
 
 ## Data Source

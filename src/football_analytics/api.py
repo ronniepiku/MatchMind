@@ -39,14 +39,15 @@ app = FastAPI(
 
 # CORS for frontend integrations
 _allowed_origins = os.getenv(
-    "CORS_ORIGINS", "http://localhost:8050,http://localhost:3000"
+    "CORS_ORIGINS",
+    "http://localhost:5173",
 ).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
+    allow_origins=[o.strip() for o in _allowed_origins],
+    allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -233,12 +234,12 @@ async def predict_xg(shot: ShotInput) -> XGPredictionResponse:
     )
 
 
-@app.post("/api/v1/simulation/match", response_model=SimulationResponse)
+@app.post("/api/v1/simulation/match-direct", response_model=SimulationResponse)
 async def simulate_match_endpoint(request: SimulationRequest) -> SimulationResponse:
     """Simulate a match outcome using Monte Carlo methods.
 
     Uses Poisson distribution with given xG values to simulate
-    the match thousands of times.
+    the match thousands of times. Accepts raw xG values directly.
     """
     from football_analytics.analysis.simulation import simulate_match
 
@@ -354,10 +355,11 @@ async def get_similar_players(
 
     try:
         vectors = compute_player_vectors(season_id, engine, min_appearances=3)
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to compute player vectors")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to compute player vectors: {e}",
+            detail="Internal server error",
         )
 
     if player_id not in vectors["player_id"].values:
@@ -619,11 +621,768 @@ async def get_possession_profile(
     )
 
 
+# ============================================================================
+# Dashboard Endpoints (for React Frontend)
+# ============================================================================
+
+
+@app.get("/api/v1/teams")
+async def list_teams() -> list[dict[str, Any]]:
+    """List all available teams."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text(
+                "SELECT DISTINCT team_id AS id, team_name AS name FROM teams ORDER BY team_name"
+            ),
+            conn,
+        )
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/seasons")
+async def list_seasons() -> list[dict[str, Any]]:
+    """List all available seasons."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text(
+                "SELECT season_id AS id, season_name AS name, "
+                "competition_name FROM competitions ORDER BY competition_name, season_name"
+            ),
+            conn,
+        )
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/players")
+async def list_players(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """List players for a team/season combination."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT DISTINCT p.player_id AS id, p.player_name AS name,
+                       COALESCE(p.position, 'Unknown') AS position
+                FROM players p
+                JOIN events e ON p.player_id = e.player_id
+                JOIN matches m ON e.match_id = m.match_id
+                WHERE e.team_id = :team_id AND m.season_id = :season_id
+                ORDER BY p.player_name
+            """),
+            conn,
+            params={"team_id": team_id, "season_id": season_id},
+        )
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/matches")
+async def list_matches(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """List matches for a team/season combination."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT m.match_id AS id,
+                       ht.team_name AS home_team,
+                       at.team_name AS away_team,
+                       m.home_score,
+                       m.away_score,
+                       m.match_date AS date,
+                       c.competition_name AS competition
+                FROM matches m
+                JOIN teams ht ON m.home_team_id = ht.team_id
+                JOIN teams at ON m.away_team_id = at.team_id
+                JOIN competitions c ON m.season_id = c.season_id
+                WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
+                  AND m.season_id = :season_id
+                ORDER BY m.match_date DESC
+            """),
+            conn,
+            params={"team_id": team_id, "season_id": season_id},
+        )
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/data-availability")
+async def check_data_availability(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> dict[str, Any]:
+    """Check data availability for a team/season."""
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                SELECT COUNT(*) AS matches
+                FROM matches
+                WHERE (home_team_id = :team_id OR away_team_id = :team_id)
+                  AND season_id = :season_id
+            """),
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchone()
+
+    count = result[0] if result else 0
+    return {"matches": count, "has_data": count > 0}
+
+
+@app.get("/api/v1/opponent/report")
+async def get_opponent_report(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> dict[str, Any]:
+    """Generate opponent scouting report."""
+    from football_analytics.analysis.opponent_profile import build_opponent_report
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    report = build_opponent_report(team_id, season_id, engine)
+
+    if not report:
+        raise HTTPException(status_code=404, detail="No data for opponent report")
+
+    return report
+
+
+@app.get("/api/v1/player/summary")
+async def get_player_summary(
+    player_id: int = Query(...),
+    season_id: int = Query(...),
+) -> dict[str, Any]:
+    """Get player season summary statistics."""
+    from football_analytics.analysis.player_performance import (
+        get_player_season_summary,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    summary = get_player_season_summary(player_id, season_id, engine)
+
+    if not summary:
+        raise HTTPException(status_code=404, detail="Player data not found")
+
+    return summary
+
+
+@app.get("/api/v1/player/rolling-form")
+async def get_player_rolling_form(
+    player_id: int = Query(...),
+    season_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get player rolling form data."""
+    from football_analytics.analysis.player_performance import get_player_rolling_form
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    form_data = get_player_rolling_form(player_id, season_id, engine)
+
+    if form_data is None or (hasattr(form_data, "empty") and form_data.empty):
+        return []
+
+    if hasattr(form_data, "to_dict"):
+        return form_data.to_dict(orient="records")
+    return form_data
+
+
+@app.get("/api/v1/player/radar")
+async def get_player_radar(
+    player_id: int = Query(...),
+    season_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get player radar percentile data."""
+    from football_analytics.analysis.player_performance import (
+        get_player_radar_percentiles,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    radar_data = get_player_radar_percentiles(player_id, season_id, engine)
+
+    if radar_data is None:
+        return []
+
+    if hasattr(radar_data, "to_dict"):
+        return radar_data.to_dict(orient="records")
+    return radar_data
+
+
+@app.get("/api/v1/player/squad-comparison")
+async def get_squad_comparison(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get squad comparison data."""
+    from football_analytics.analysis.player_performance import get_squad_comparison
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    comparison = get_squad_comparison(team_id, season_id, engine)
+
+    if comparison is None or (hasattr(comparison, "empty") and comparison.empty):
+        return []
+
+    if hasattr(comparison, "to_dict"):
+        return comparison.to_dict(orient="records")
+    return comparison
+
+
+@app.get("/api/v1/team/scorecard")
+async def get_team_scorecard(
+    team_id: int = Query(...),
+    season_id: int = Query(...),
+) -> dict[str, Any]:
+    """Generate comprehensive team scorecard."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.analysis.opponent_profile import (
+        get_opponent_defensive_shape,
+    )
+    from football_analytics.analysis.possession_chains import (
+        chains_to_dataframe,
+        compute_team_possession_profile,
+        compute_transition_metrics,
+        extract_possession_chains,
+    )
+    from football_analytics.analysis.set_pieces import (
+        compute_set_piece_efficiency,
+        extract_set_pieces,
+        set_pieces_to_dataframe,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+
+    # Fetch events
+    with engine.connect() as conn:
+        events_df = pd.read_sql(
+            text("""
+                SELECT e.*
+                FROM events e
+                JOIN matches m ON e.match_id = m.match_id
+                WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
+                  AND m.season_id = :season_id
+                ORDER BY e.match_id, e.minute, e.second
+            """),
+            conn,
+            params={"team_id": team_id, "season_id": season_id},
+        )
+
+    if events_df.empty:
+        raise HTTPException(status_code=404, detail="No event data found")
+
+    # Possession profile
+    chains = extract_possession_chains(events_df)
+    chains_df = chains_to_dataframe(chains)
+    profile = compute_team_possession_profile(chains_df, team_id)
+    transitions = compute_transition_metrics(chains_df, team_id)
+
+    # Set pieces
+    sp_events = events_df[
+        events_df["play_pattern"].isin(
+            ["From Corner", "From Free Kick", "From Throw In"]
+        )
+    ]
+    sp_sequences = extract_set_pieces(sp_events) if not sp_events.empty else []
+    sp_df = set_pieces_to_dataframe(sp_sequences) if sp_sequences else pd.DataFrame()
+    sp_efficiency = (
+        compute_set_piece_efficiency(sp_df, team_id) if not sp_df.empty else {}
+    )
+
+    # Defensive shape / pressing
+    defensive_shape = get_opponent_defensive_shape(team_id, season_id, engine)
+
+    # Build KPIs
+    team_events = events_df[events_df["team_id"] == team_id]
+    n_matches = events_df["match_id"].nunique()
+    shots = team_events[team_events["event_type"] == "Shot"]
+    total_xg = float(shots["xg"].sum()) if "xg" in shots.columns else 0.0
+
+    kpis = [
+        {"label": "Matches", "value": n_matches, "unit": ""},
+        {"label": "Total xG", "value": round(total_xg, 2), "unit": ""},
+        {
+            "label": "xG/Match",
+            "value": round(total_xg / max(n_matches, 1), 2),
+            "unit": "",
+        },
+        {
+            "label": "Possession Chains",
+            "value": profile.get("total_chains", 0),
+            "unit": "",
+        },
+        {
+            "label": "Dangerous Poss %",
+            "value": round(profile.get("dangerous_possession_rate", 0) * 100, 1),
+            "unit": "%",
+        },
+    ]
+
+    # Possession style
+    possession_profile = [
+        {"style": k, "percentage": round(v * 100, 1)}
+        for k, v in profile.get("style_distribution", {}).items()
+    ]
+
+    # Pressing intensity by zone
+    pressing_data = []
+    if defensive_shape and isinstance(defensive_shape, list):
+        for zone_data in defensive_shape:
+            if isinstance(zone_data, dict):
+                pressing_data.append(
+                    {
+                        "zone": zone_data.get("zone", "Unknown"),
+                        "pressures_per_90": round(
+                            zone_data.get("pressures", 0)
+                            / max(n_matches, 1)
+                            * (90 / 95),
+                            1,
+                        ),
+                    }
+                )
+
+    # Transitions
+    transition_metrics = []
+    if transitions and isinstance(transitions, dict):
+        for metric_name, value in transitions.items():
+            transition_metrics.append(
+                {
+                    "metric": metric_name.replace("_", " ").title(),
+                    "value": round(value, 2) if isinstance(value, (int, float)) else 0,
+                    "league_avg": 0,
+                    "percentile": 50,
+                }
+            )
+
+    # Set piece efficiency
+    set_pieces_list = []
+    if sp_efficiency and isinstance(sp_efficiency, dict):
+        for sp_type in ["corner", "free_kick", "throw_in"]:
+            count = sp_efficiency.get(f"{sp_type}_count", 0)
+            if count:
+                set_pieces_list.append(
+                    {
+                        "type": sp_type.replace("_", " ").title(),
+                        "total": count,
+                        "chances_created": sp_efficiency.get(f"{sp_type}_chances", 0),
+                        "goals": sp_efficiency.get(f"{sp_type}_goals", 0),
+                        "xg": round(sp_efficiency.get(f"{sp_type}_xg", 0), 2),
+                        "conversion_rate": round(
+                            sp_efficiency.get(f"{sp_type}_goal_rate", 0), 3
+                        ),
+                    }
+                )
+
+    return {
+        "kpis": kpis,
+        "possession_profile": possession_profile,
+        "pressing_intensity": pressing_data,
+        "transitions": transition_metrics,
+        "set_pieces": set_pieces_list,
+    }
+
+
+@app.get("/api/v1/match/shots")
+async def get_match_shots(
+    match_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get shot events for a match."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT e.location_x AS x, e.location_y AS y,
+                       COALESCE(e.xg, 0) AS xg,
+                       LOWER(COALESCE(e.shot_outcome, 'off_target')) AS outcome,
+                       p.player_name,
+                       e.minute,
+                       t.team_name AS team,
+                       COALESCE(e.shot_body_part, 'Foot') AS body_part,
+                       COALESCE(e.shot_technique, 'Normal') AS technique
+                FROM events e
+                LEFT JOIN players p ON e.player_id = p.player_id
+                LEFT JOIN teams t ON e.team_id = t.team_id
+                WHERE e.match_id = :match_id AND e.event_type = 'Shot'
+                ORDER BY e.minute
+            """),
+            conn,
+            params={"match_id": match_id},
+        )
+    # Normalise outcome names
+    outcome_map = {
+        "goal": "goal",
+        "saved": "saved",
+        "blocked": "blocked",
+        "off target": "off_target",
+        "off_target": "off_target",
+        "post": "post",
+        "wayward": "off_target",
+    }
+    df["outcome"] = df["outcome"].map(lambda x: outcome_map.get(x, "off_target"))
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/match/xg-timeline")
+async def get_xg_timeline(
+    match_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get xG timeline events for a match."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT e.minute,
+                       t.team_name AS team,
+                       COALESCE(e.xg, 0) AS xg,
+                       p.player_name,
+                       LOWER(COALESCE(e.shot_outcome, 'off_target')) AS outcome
+                FROM events e
+                LEFT JOIN players p ON e.player_id = p.player_id
+                LEFT JOIN teams t ON e.team_id = t.team_id
+                WHERE e.match_id = :match_id AND e.event_type = 'Shot'
+                ORDER BY e.minute
+            """),
+            conn,
+            params={"match_id": match_id},
+        )
+
+    # Compute cumulative xG per team
+    records = []
+    team_cum: dict[str, float] = {}
+    for _, row in df.iterrows():
+        team = row["team"]
+        team_cum[team] = team_cum.get(team, 0) + row["xg"]
+        records.append(
+            {
+                "minute": int(row["minute"]),
+                "team": team,
+                "xg": round(float(row["xg"]), 3),
+                "cumulative_xg": round(team_cum[team], 3),
+                "player_name": row["player_name"],
+                "outcome": row["outcome"],
+            }
+        )
+    return records
+
+
+@app.get("/api/v1/match/passing-network")
+async def get_passing_network(
+    match_id: int = Query(...),
+    team_id: int = Query(...),
+) -> dict[str, Any]:
+    """Get passing network data for a team in a match."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        passes_df = pd.read_sql(
+            text("""
+                SELECT e.player_id, p.player_name,
+                       COALESCE(p.position, 'Unknown') AS position,
+                       e.location_x, e.location_y,
+                       e.pass_recipient_id
+                FROM events e
+                LEFT JOIN players p ON e.player_id = p.player_id
+                WHERE e.match_id = :match_id
+                  AND e.team_id = :team_id
+                  AND e.event_type = 'Pass'
+                  AND e.pass_outcome IS NULL
+                  AND e.minute <= 70
+                ORDER BY e.minute
+            """),
+            conn,
+            params={"match_id": match_id, "team_id": team_id},
+        )
+
+    if passes_df.empty:
+        return {"nodes": [], "edges": []}
+
+    # Compute average positions
+    avg_pos = (
+        passes_df.groupby(["player_id", "player_name", "position"])
+        .agg(
+            x=("location_x", "mean"),
+            y=("location_y", "mean"),
+            passes_made=("player_id", "count"),
+        )
+        .reset_index()
+    )
+
+    # Filter to most active 11 players
+    avg_pos = avg_pos.nlargest(11, "passes_made")
+
+    nodes = [
+        {
+            "player_name": row["player_name"],
+            "position": row["position"],
+            "x": round(float(row["x"]), 1),
+            "y": round(float(row["y"]), 1),
+            "passes_made": int(row["passes_made"]),
+        }
+        for _, row in avg_pos.iterrows()
+    ]
+
+    # Compute edges (pass combinations)
+    active_ids = set(avg_pos["player_id"].values)
+    edge_df = passes_df[
+        passes_df["player_id"].isin(active_ids)
+        & passes_df["pass_recipient_id"].isin(active_ids)
+    ]
+
+    # Build name lookup
+    id_to_name = dict(zip(avg_pos["player_id"], avg_pos["player_name"]))
+
+    edge_counts = (
+        edge_df.groupby(["player_id", "pass_recipient_id"])
+        .size()
+        .reset_index(name="passes")
+    )
+
+    # Only keep edges with 3+ passes
+    edge_counts = edge_counts[edge_counts["passes"] >= 3]
+
+    edges = [
+        {
+            "source": id_to_name.get(row["player_id"], "Unknown"),
+            "target": id_to_name.get(row["pass_recipient_id"], "Unknown"),
+            "passes": int(row["passes"]),
+            "progressive": 0,
+        }
+        for _, row in edge_counts.iterrows()
+    ]
+
+    return {"nodes": nodes, "edges": edges}
+
+
+@app.get("/api/v1/match/pressure-map")
+async def get_pressure_map(
+    match_id: int = Query(...),
+    team_id: int = Query(...),
+) -> list[dict[str, Any]]:
+    """Get pressure events for a team in a match."""
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT e.location_x AS x, e.location_y AS y,
+                       CASE WHEN e.pressure_regain THEN true ELSE false END AS success,
+                       e.minute,
+                       p.player_name
+                FROM events e
+                LEFT JOIN players p ON e.player_id = p.player_id
+                WHERE e.match_id = :match_id
+                  AND e.team_id = :team_id
+                  AND e.event_type = 'Pressure'
+                ORDER BY e.minute
+            """),
+            conn,
+            params={"match_id": match_id, "team_id": team_id},
+        )
+    return df.to_dict(orient="records")
+
+
+@app.get("/api/v1/player/similar")
+async def get_similar_players_v2(
+    player_id: int = Query(...),
+    season_id: int = Query(106),
+    top_n: int = Query(10, ge=1, le=50),
+) -> list[dict[str, Any]]:
+    """Find similar players (v2 endpoint for dashboard)."""
+    from football_analytics.analysis.similarity import (
+        compute_player_vectors,
+        find_similar_players,
+    )
+    from football_analytics.db import get_engine as _get_engine
+
+    engine = _get_engine()
+    try:
+        vectors = compute_player_vectors(season_id, engine=engine, min_appearances=3)
+    except Exception:
+        logger.exception("Similarity computation failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    if player_id not in vectors["player_id"].values:
+        raise HTTPException(status_code=404, detail=f"Player {player_id} not found")
+
+    similar = find_similar_players(player_id, vectors, top_n=top_n)
+
+    return [
+        {
+            "player_name": row["player_name"],
+            "team": row.get("team_name", "Unknown"),
+            "position": row.get("position", "Unknown"),
+            "similarity_score": round(float(row["similarity"]), 3),
+            "age": int(row.get("age", 0)),
+            "minutes": int(row.get("minutes", 0)),
+            "key_metrics": {},
+        }
+        for _, row in similar.iterrows()
+    ]
+
+
+class SimulationV2Request(BaseModel):
+    """Request model for v2 match simulation."""
+
+    home_team_id: int = Field(..., gt=0, description="Home team ID")
+    away_team_id: int = Field(..., gt=0, description="Away team ID")
+    season_id: int = Field(..., gt=0, description="Season ID")
+
+
+@app.post("/api/v1/simulation/match")
+async def simulate_match_v2(request: SimulationV2Request) -> dict[str, Any]:
+    """Run match simulation (v2 endpoint for dashboard).
+
+    Accepts home_team_id, away_team_id, season_id and computes
+    xG values from historical data before running simulation.
+    """
+    import pandas as pd
+    from sqlalchemy import text
+
+    from football_analytics.analysis.simulation import simulate_match
+    from football_analytics.db import get_engine as _get_engine
+
+    home_team_id = request.home_team_id
+    away_team_id = request.away_team_id
+    season_id = request.season_id
+
+    engine = _get_engine()
+
+    # Compute average xG per match for each team
+    with engine.connect() as conn:
+        home_xg_df = pd.read_sql(
+            text("""
+                SELECT COALESCE(AVG(match_xg), 1.3) AS avg_xg FROM (
+                    SELECT SUM(COALESCE(e.xg, 0)) AS match_xg
+                    FROM events e
+                    JOIN matches m ON e.match_id = m.match_id
+                    WHERE e.team_id = :team_id
+                      AND m.season_id = :season_id
+                      AND e.event_type = 'Shot'
+                    GROUP BY e.match_id
+                ) sub
+            """),
+            conn,
+            params={"team_id": home_team_id, "season_id": season_id},
+        )
+        away_xg_df = pd.read_sql(
+            text("""
+                SELECT COALESCE(AVG(match_xg), 1.1) AS avg_xg FROM (
+                    SELECT SUM(COALESCE(e.xg, 0)) AS match_xg
+                    FROM events e
+                    JOIN matches m ON e.match_id = m.match_id
+                    WHERE e.team_id = :team_id
+                      AND m.season_id = :season_id
+                      AND e.event_type = 'Shot'
+                    GROUP BY e.match_id
+                ) sub
+            """),
+            conn,
+            params={"team_id": away_team_id, "season_id": season_id},
+        )
+
+        # Get team names
+        teams_df = pd.read_sql(
+            text("SELECT team_id, team_name FROM teams WHERE team_id IN (:h, :a)"),
+            conn,
+            params={"h": home_team_id, "a": away_team_id},
+        )
+
+    home_xg = float(home_xg_df["avg_xg"].iloc[0]) if not home_xg_df.empty else 1.3
+    away_xg = float(away_xg_df["avg_xg"].iloc[0]) if not away_xg_df.empty else 1.1
+
+    home_name = "Home"
+    away_name = "Away"
+    for _, row in teams_df.iterrows():
+        if row["team_id"] == home_team_id:
+            home_name = row["team_name"]
+        elif row["team_id"] == away_team_id:
+            away_name = row["team_name"]
+
+    result = simulate_match(
+        home_xg=home_xg,
+        away_xg=away_xg,
+        home_team=home_name,
+        away_team=away_name,
+        n_simulations=10000,
+    )
+
+    # Convert scoreline distribution
+    top_scores = sorted(
+        result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True
+    )[:15]
+    scoreline_dist = [
+        {"score": f"{h}-{a}", "probability": round(prob, 4)}
+        for (h, a), prob in top_scores
+    ]
+
+    return {
+        "home_win_prob": round(result.home_win_prob, 4),
+        "draw_prob": round(result.draw_prob, 4),
+        "away_win_prob": round(result.away_win_prob, 4),
+        "expected_home_goals": round(result.expected_home_goals, 2),
+        "expected_away_goals": round(result.expected_away_goals, 2),
+        "most_likely_score": f"{result.most_likely_score[0]}-{result.most_likely_score[1]}",
+        "over_2_5_prob": round(result.over_2_5_prob, 4),
+        "btts_prob": round(result.btts_prob, 4),
+        "scoreline_distribution": scoreline_dist,
+    }
+
+
 def main() -> None:
     """Run the API server."""
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = int(os.getenv("API_PORT", "8080"))
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

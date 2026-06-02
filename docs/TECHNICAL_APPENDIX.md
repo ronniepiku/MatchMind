@@ -51,7 +51,7 @@ Our trainable logistic regression xG model provides:
 
 **Comparison methodology**: `compare_to_statsbomb()` computes mean absolute difference between our model's predictions and StatsBomb's pre-computed xG values, establishing alignment with industry models.
 
-### Team Scorecard Metrics (`dashboard/app.py` - New in v0.3.1)
+### Team Scorecard Metrics (Frontend: `TeamScorecard.tsx`)
 
 The interactive **Team Scorecard** provides holistic performance analysis across four dimensions:
 
