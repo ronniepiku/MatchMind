@@ -11,11 +11,13 @@ import {
     ChevronLeft,
     ChevronRight,
     Radar,
+    X,
 } from "lucide-react";
 
 interface SidebarProps {
     collapsed: boolean;
     onToggle: () => void;
+    onClose?: () => void;
 }
 
 const navigation = [
@@ -28,7 +30,7 @@ const navigation = [
     { name: "Simulation", path: "/simulation", icon: Dice5 },
 ];
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {
     return (
         <aside
             className={clsx(
@@ -37,7 +39,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             )}
         >
             {/* Logo / Brand */}
-            <div className="flex h-14 items-center border-b border-[var(--border-color)] px-4">
+            <div className="flex h-14 items-center justify-between border-b border-[var(--border-color)] px-4">
                 <div className="flex items-center gap-2 overflow-hidden">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-500 text-white">
                         <Radar size={18} strokeWidth={2.5} />
@@ -48,6 +50,16 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         </span>
                     )}
                 </div>
+                {/* Mobile close button */}
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] lg:hidden"
+                        aria-label="Close sidebar"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                )}
             </div>
 
             {/* Navigation */}
@@ -72,8 +84,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 ))}
             </nav>
 
-            {/* Collapse Toggle */}
-            <div className="border-t border-[var(--border-color)] p-2">
+            {/* Collapse Toggle — desktop only */}
+            <div className="hidden lg:block border-t border-[var(--border-color)] p-2">
                 <button
                     onClick={onToggle}
                     className="flex w-full items-center justify-center rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] transition-colors"

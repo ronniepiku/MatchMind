@@ -155,6 +155,22 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* Responsive chart containers */
+.recharts-responsive-container {
+    min-width: 0 !important;
+}
+
+/* Prevent horizontal overflow on mobile */
+@media (max-width: 639px) {
+    .recharts-wrapper {
+        max-width: 100% !important;
+    }
+
+    .recharts-surface {
+        max-width: 100%;
+    }
+}
+
 /* Pitch SVG styling */
 .pitch-container svg {
     width: 100%;

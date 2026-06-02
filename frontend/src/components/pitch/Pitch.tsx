@@ -171,14 +171,15 @@ export default function Pitch({
     }, [width, height, orientation, half, xScale, yScale, xDomain, effectiveLength]);
 
     return (
-        <div className={clsx("pitch-container relative", className)}>
+        <div className={clsx("pitch-container relative w-full overflow-hidden", className)}>
             <svg
                 ref={svgRef}
-                width={width}
-                height={height}
+                width="100%"
+                height="auto"
                 viewBox={`0 0 ${width} ${height}`}
-                className="rounded-lg"
-                style={{ background: "var(--color-pitch-green)" }}
+                preserveAspectRatio="xMidYMid meet"
+                className="rounded-lg w-full h-auto"
+                style={{ background: "var(--color-pitch-green)", maxWidth: width }}
             >
                 {/* Pitch markings rendered by D3 */}
                 {/* Data overlay rendered by React */}

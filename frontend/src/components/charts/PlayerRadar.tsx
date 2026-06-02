@@ -58,8 +58,14 @@ export default function PlayerRadar({
         : null;
 
     return (
-        <div className={clsx("flex items-center justify-center", className)}>
-            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <div className={clsx("flex items-center justify-center w-full overflow-hidden", className)}>
+            <svg
+                width="100%"
+                height="auto"
+                viewBox={`0 0 ${size} ${size}`}
+                style={{ maxWidth: size, maxHeight: size }}
+                className="w-full h-auto"
+            >
                 {/* Background levels */}
                 {Array.from({ length: levels }, (_, i) => {
                     const levelRadius = (radius / levels) * (i + 1);

@@ -119,7 +119,7 @@ export default function TeamScorecard() {
                         value={teamId}
                         onChange={(v) => setTeamId(Number(v))}
                         placeholder="Select team..."
-                        className="w-56"
+                        className="w-full sm:w-56"
                     />
                     <Select
                         label="Season"
@@ -130,7 +130,7 @@ export default function TeamScorecard() {
                         value={seasonId}
                         onChange={(v) => setSeasonId(Number(v))}
                         placeholder="Select season..."
-                        className="w-56"
+                        className="w-full sm:w-56"
                     />
                     <Button
                         onClick={() => refetch()}

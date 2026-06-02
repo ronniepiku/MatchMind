@@ -54,7 +54,7 @@ export default function Simulation() {
                             setShouldRun(false);
                         }}
                         placeholder="Select home team..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <div className="flex items-center pb-2 text-lg font-bold text-[var(--text-muted)]">
                         vs
@@ -68,7 +68,7 @@ export default function Simulation() {
                             setShouldRun(false);
                         }}
                         placeholder="Select away team..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <Select
                         label="Based on Season"
@@ -82,7 +82,7 @@ export default function Simulation() {
                             setShouldRun(false);
                         }}
                         placeholder="Select season..."
-                        className="w-56"
+                        className="w-full sm:w-56"
                     />
                     <Button
                         onClick={handleRun}

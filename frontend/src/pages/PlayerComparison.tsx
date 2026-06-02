@@ -84,7 +84,7 @@ export default function PlayerComparison() {
                             setPlayerId(undefined);
                         }}
                         placeholder="Select team..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <Select
                         label="Season"
@@ -98,7 +98,7 @@ export default function PlayerComparison() {
                             setPlayerId(undefined);
                         }}
                         placeholder="Select season..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <Select
                         label="Player"
@@ -110,7 +110,7 @@ export default function PlayerComparison() {
                         onChange={(v) => setPlayerId(Number(v))}
                         placeholder="Select player..."
                         disabled={!players?.length}
-                        className="w-64"
+                        className="w-full sm:w-64"
                     />
                 </div>
             </Card>

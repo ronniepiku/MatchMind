@@ -78,7 +78,7 @@ export default function MatchAnalysis() {
                             setMatchId(undefined);
                         }}
                         placeholder="Select team..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <Select
                         label="Season"
@@ -92,7 +92,7 @@ export default function MatchAnalysis() {
                             setMatchId(undefined);
                         }}
                         placeholder="Select season..."
-                        className="w-52"
+                        className="w-full sm:w-52"
                     />
                     <Select
                         label="Match"
@@ -104,7 +104,7 @@ export default function MatchAnalysis() {
                         onChange={(v) => setMatchId(Number(v))}
                         placeholder="Select match..."
                         disabled={!matches?.length}
-                        className="w-80"
+                        className="w-full sm:w-80"
                     />
                 </div>
             </Card>

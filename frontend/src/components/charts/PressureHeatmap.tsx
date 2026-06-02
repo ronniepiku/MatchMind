@@ -96,11 +96,11 @@ export default function PressureHeatmap({
 
     return (
         <div className={clsx("space-y-3", className)}>
-            <div className="relative">
+            <div className="relative w-full overflow-hidden">
                 <Pitch width={width} height={height} />
                 <canvas
                     ref={canvasRef}
-                    className="absolute inset-0 rounded-lg pointer-events-none"
+                    className="absolute inset-0 rounded-lg pointer-events-none w-full h-full"
                     style={{ mixBlendMode: "screen" }}
                 />
             </div>
