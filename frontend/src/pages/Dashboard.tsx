@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { fetchTeams, fetchSeasons } from "@/api/endpoints";
 import { Card, KPICard } from "@/components/shared";
 import {
@@ -137,8 +138,8 @@ interface NavigationCardProps {
 
 function NavigationCard({ title, description, icon: Icon, href, color }: NavigationCardProps) {
     return (
-        <a
-            href={href}
+        <Link
+            to={href}
             className="group block rounded-xl border border-[var(--border-color)] bg-[var(--bg-card)] p-5 transition-all hover:border-accent-500/50 hover:shadow-lg hover:shadow-accent-500/5"
         >
             <div className="flex items-start gap-4">
@@ -159,7 +160,7 @@ function NavigationCard({ title, description, icon: Icon, href, color }: Navigat
                     </p>
                 </div>
             </div>
-        </a>
+        </Link>
     );
 }
 
