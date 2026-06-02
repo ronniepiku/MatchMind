@@ -681,10 +681,12 @@ async def list_players(
         df = pd.read_sql(
             text("""
                 SELECT DISTINCT p.player_id AS id, p.player_name AS name,
-                       COALESCE(p.position, 'Unknown') AS position
+                       COALESCE(l.position, 'Unknown') AS position
                 FROM players p
                 JOIN events e ON p.player_id = e.player_id
                 JOIN matches m ON e.match_id = m.match_id
+                LEFT JOIN lineups l ON p.player_id = l.player_id
+                    AND l.match_id = e.match_id
                 WHERE e.team_id = :team_id AND m.season_id = :season_id
                 ORDER BY p.player_name
             """),
@@ -719,7 +721,7 @@ async def list_matches(
                 FROM matches m
                 JOIN teams ht ON m.home_team_id = ht.team_id
                 JOIN teams at ON m.away_team_id = at.team_id
-                JOIN competitions c ON m.season_id = c.season_id
+                JOIN competitions c ON m.competition_id = c.competition_id
                 WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
                   AND m.season_id = :season_id
                 ORDER BY m.match_date DESC
@@ -786,7 +788,7 @@ async def get_player_summary(
     from football_analytics.db import get_engine as _get_engine
 
     engine = _get_engine()
-    summary = get_player_season_summary(player_id, season_id, engine)
+    summary = get_player_season_summary(engine, player_id, season_id)
 
     if not summary:
         raise HTTPException(status_code=404, detail="Player data not found")
@@ -804,7 +806,7 @@ async def get_player_rolling_form(
     from football_analytics.db import get_engine as _get_engine
 
     engine = _get_engine()
-    form_data = get_player_rolling_form(player_id, season_id, engine)
+    form_data = get_player_rolling_form(engine, player_id, season_id)
 
     if form_data is None or (hasattr(form_data, "empty") and form_data.empty):
         return []
@@ -826,7 +828,7 @@ async def get_player_radar(
     from football_analytics.db import get_engine as _get_engine
 
     engine = _get_engine()
-    radar_data = get_player_radar_percentiles(player_id, season_id, engine)
+    radar_data = get_player_radar_percentiles(engine, player_id, season_id)
 
     if radar_data is None:
         return []
@@ -846,7 +848,7 @@ async def get_squad_comparison(
     from football_analytics.db import get_engine as _get_engine
 
     engine = _get_engine()
-    comparison = get_squad_comparison(team_id, season_id, engine)
+    comparison = get_squad_comparison(engine, team_id, season_id)
 
     if comparison is None or (hasattr(comparison, "empty") and comparison.empty):
         return []
@@ -905,7 +907,7 @@ async def get_team_scorecard(
     chains = extract_possession_chains(events_df)
     chains_df = chains_to_dataframe(chains)
     profile = compute_team_possession_profile(chains_df, team_id)
-    transitions = compute_transition_metrics(chains_df, team_id)
+    transitions = compute_transition_metrics(chains)
 
     # Set pieces
     sp_events = events_df[
@@ -920,7 +922,7 @@ async def get_team_scorecard(
     )
 
     # Defensive shape / pressing
-    defensive_shape = get_opponent_defensive_shape(team_id, season_id, engine)
+    defensive_shape = get_opponent_defensive_shape(engine, team_id, season_id)
 
     # Build KPIs
     team_events = events_df[events_df["team_id"] == team_id]
@@ -1213,7 +1215,7 @@ async def get_pressure_map(
         df = pd.read_sql(
             text("""
                 SELECT e.location_x AS x, e.location_y AS y,
-                       CASE WHEN e.pressure_regain THEN true ELSE false END AS success,
+                       e.counterpress AS success,
                        e.minute,
                        p.player_name
                 FROM events e
@@ -1380,7 +1382,7 @@ def main() -> None:
     """Run the API server."""
     import uvicorn
 
-    host = os.getenv("API_HOST", "127.0.0.1")
+    host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", "8080"))
     uvicorn.run(app, host=host, port=port)
 
