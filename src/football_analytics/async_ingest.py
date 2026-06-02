@@ -20,7 +20,9 @@ from tqdm.asyncio import tqdm_asyncio
 from football_analytics.db import get_engine
 from football_analytics.ingest import (
     _extract_players_from_events,
+    _load_competition,
     _load_lineups,
+    _load_matches,
     _resolve_ids,
     bulk_load_events,
     bulk_load_players,
@@ -152,6 +154,20 @@ async def ingest_competition_async(
         bulk_load_teams(engine, all_teams)
 
         team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"]))
+
+        # 2b. Load competition and matches (required for foreign keys)
+        # Adapt json_normalize column names to what _load_matches expects
+        matches_compat = matches_df.rename(columns={
+            "home_team.home_team_id": "home_team_id",
+            "home_team.home_team_name": "home_team",
+            "away_team.away_team_id": "away_team_id",
+            "away_team.away_team_name": "away_team",
+            "competition.competition_name": "competition_name",
+            "season.season_name": "season_name",
+            "competition.country_name": "country_name",
+        })
+        _load_competition(engine, matches_compat, competition_id, season_id)
+        _load_matches(engine, matches_compat, competition_id, season_id)
 
         # 3. Process matches concurrently
         semaphore = asyncio.Semaphore(concurrency)

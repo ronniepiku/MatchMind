@@ -335,7 +335,6 @@ def _copy_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) -> None
         sep="\t",
         na_rep="\\N",
         quoting=csv.QUOTE_NONE,
-        escapechar="\\",
     )
     buffer.seek(0)
 
