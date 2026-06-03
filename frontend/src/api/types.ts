@@ -221,3 +221,128 @@ export interface DataAvailability {
     matches: number;
     has_data: boolean;
 }
+
+// ─── Prediction Engine ────────────────────────────────────
+export interface MatchPrediction {
+    team_a_win_prob: number;
+    draw_prob: number;
+    team_b_win_prob: number;
+    most_likely_score: [number, number];
+    confidence: string;
+    team_a_expected_xg: number;
+    team_b_expected_xg: number;
+    key_factors: string[];
+    n_simulations: number;
+}
+
+export interface TeamRating {
+    team_id: number;
+    team_name: string;
+    overall_rating: number;
+    offensive_strength: number;
+    defensive_strength: number;
+    form_trend: string;
+    confidence: string;
+    rating_date: string;
+}
+
+export interface TeamRatingsResponse {
+    ratings: TeamRating[];
+    model_version: string;
+}
+
+// ─── Matchday Operations ──────────────────────────────────
+export interface Fixture {
+    fixture_id: number;
+    match_date: string | null;
+    competition_name: string;
+    home_team: { id: number; name: string };
+    away_team: { id: number; name: string };
+    venue_type: string;
+    stage: string;
+    status: string;
+    days_until: number | null;
+    priority: number;
+}
+
+export interface CalendarResponse {
+    upcoming_count: number;
+    needing_preview: number;
+    needing_review: number;
+    upcoming_fixtures: Fixture[];
+    recent_results: Fixture[];
+    status_counts: Record<string, number>;
+}
+
+export interface PreMatchPack {
+    fixture_id: number;
+    opponent_profile: Record<string, unknown>;
+    prediction: MatchPrediction;
+    tactical_suggestions: string[];
+    key_threats: string[];
+}
+
+// ─── Executive Reporting ──────────────────────────────────
+export interface RAGMetric {
+    name: string;
+    value: number | string;
+    unit: string;
+    rag: "red" | "amber" | "green";
+    trend: "improving" | "stable" | "declining";
+    context: string;
+}
+
+export interface WeeklyBriefing {
+    reporting_period: string;
+    headline: string;
+    key_points: string[];
+    recommendations: string[];
+    squad_metrics: RAGMetric[];
+    week_difficulty: "red" | "amber" | "green";
+}
+
+export interface PlayerAssessmentResult {
+    player_name: string;
+    position: string;
+    kpis: RAGMetric[];
+    trajectory: string;
+    recommendation: string;
+    rationale: string[];
+}
+
+// ─── Analysis Workbench ───────────────────────────────────
+export interface QueryParameter {
+    name: string;
+    type: string;
+    description: string;
+    required: boolean;
+    default: unknown;
+}
+
+export interface QueryDefinition {
+    query_id: string;
+    name: string;
+    description: string;
+    category: string;
+    parameters: QueryParameter[];
+}
+
+export interface QueryListResponse {
+    queries: QueryDefinition[];
+    categories: string[];
+}
+
+export interface QueryResult {
+    query_id: string;
+    parameters: Record<string, unknown>;
+    row_count: number;
+    results: Record<string, unknown>[];
+}
+
+// ─── Cache & System ───────────────────────────────────────
+export interface CacheStats {
+    files: number;
+    total_size_mb: number;
+    oldest_seconds_ago: number | null;
+    newest_seconds_ago: number | null;
+}

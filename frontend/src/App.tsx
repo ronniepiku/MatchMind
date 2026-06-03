@@ -8,6 +8,9 @@ import {
   MatchAnalysis,
   PlayerComparison,
   Simulation,
+  Predictions,
+  MatchdayCalendar,
+  AnalysisWorkbench,
 } from "@/pages";
 
 export default function App() {
@@ -21,6 +24,9 @@ export default function App() {
         <Route path="match" element={<MatchAnalysis />} />
         <Route path="comparison" element={<PlayerComparison />} />
         <Route path="simulation" element={<Simulation />} />
+        <Route path="predictions" element={<Predictions />} />
+        <Route path="matchday" element={<MatchdayCalendar />} />
+        <Route path="analysis" element={<AnalysisWorkbench />} />
       </Route>
     </Routes>
   );

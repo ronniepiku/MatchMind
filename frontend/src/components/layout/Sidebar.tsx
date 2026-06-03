@@ -12,6 +12,9 @@ import {
     ChevronRight,
     Radar,
     X,
+    Brain,
+    Calendar,
+    FlaskConical,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -22,6 +25,9 @@ interface SidebarProps {
 
 const navigation = [
     { name: "Overview", path: "/", icon: LayoutDashboard },
+    { name: "Predictions", path: "/predictions", icon: Brain },
+    { name: "Matchday", path: "/matchday", icon: Calendar },
+    { name: "Analysis Workbench", path: "/analysis", icon: FlaskConical },
     { name: "Opponent Profile", path: "/opponent", icon: Target },
     { name: "Player Performance", path: "/player", icon: UserCircle },
     { name: "Team Scorecard", path: "/scorecard", icon: Activity },

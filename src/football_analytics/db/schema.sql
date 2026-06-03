@@ -302,3 +302,119 @@ BEGIN
     REFRESH MATERIALIZED VIEW CONCURRENTLY mv_team_season_stats;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- PREDICTION ENGINE TABLES
+-- ============================================================================
+
+-- Team strength ratings (versioned snapshots)
+CREATE TABLE IF NOT EXISTS team_ratings (
+    id                  SERIAL PRIMARY KEY,
+    team_id             INTEGER NOT NULL REFERENCES teams(team_id),
+    competition_id      INTEGER REFERENCES competitions(competition_id),
+    rating_date         DATE NOT NULL DEFAULT CURRENT_DATE,
+    model_version       VARCHAR(20) NOT NULL DEFAULT 'v1.0',
+    offensive_strength  REAL NOT NULL,
+    defensive_strength  REAL NOT NULL,
+    overall_rating      REAL NOT NULL,
+    pressing_intensity  REAL,
+    possession_dominance REAL,
+    set_piece_threat    REAL,
+    directness          REAL,
+    matches_used        SMALLINT NOT NULL,
+    confidence          VARCHAR(10) NOT NULL,  -- 'low', 'medium', 'high'
+    form_trend          REAL,
+    UNIQUE (team_id, competition_id, rating_date, model_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_team_ratings_lookup
+    ON team_ratings (team_id, rating_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_team_ratings_competition
+    ON team_ratings (competition_id, rating_date DESC);
+
+-- Fixtures (scheduled/upcoming matches for prediction)
+CREATE TABLE IF NOT EXISTS fixtures (
+    fixture_id          SERIAL PRIMARY KEY,
+    competition_id      INTEGER NOT NULL REFERENCES competitions(competition_id),
+    season_id           INTEGER NOT NULL,
+    match_date          DATE,
+    kick_off            TIME,
+    home_team_id        INTEGER NOT NULL REFERENCES teams(team_id),
+    away_team_id        INTEGER NOT NULL REFERENCES teams(team_id),
+    venue_type          VARCHAR(10) NOT NULL DEFAULT 'home',  -- 'home', 'away', 'neutral'
+    stage               VARCHAR(100),  -- 'Group A', 'Round of 16', 'Matchweek 12'
+    matchday            SMALLINT,
+    status              VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+    -- Status lifecycle: scheduled → preview_generated → in_progress → completed → reviewed
+    match_id            INTEGER REFERENCES matches(match_id),  -- Links to actual match after played
+    created_at          TIMESTAMP DEFAULT NOW(),
+    updated_at          TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_competition
+    ON fixtures (competition_id, season_id, match_date);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_status
+    ON fixtures (status, match_date);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_teams
+    ON fixtures (home_team_id, away_team_id);
+
+-- Match predictions (stored for accountability tracking)
+CREATE TABLE IF NOT EXISTS predictions (
+    prediction_id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fixture_id          INTEGER REFERENCES fixtures(fixture_id),
+    match_id            INTEGER REFERENCES matches(match_id),
+    model_version       VARCHAR(20) NOT NULL DEFAULT 'v1.0',
+    -- Core prediction
+    team_a_id           INTEGER NOT NULL REFERENCES teams(team_id),
+    team_b_id           INTEGER NOT NULL REFERENCES teams(team_id),
+    team_a_win_prob     REAL NOT NULL,
+    draw_prob           REAL NOT NULL,
+    team_b_win_prob     REAL NOT NULL,
+    team_a_expected_xg  REAL NOT NULL,
+    team_b_expected_xg  REAL NOT NULL,
+    most_likely_score   VARCHAR(10),  -- e.g., '2-1'
+    -- Derived markets
+    over_2_5_prob       REAL,
+    btts_prob           REAL,
+    -- Context
+    venue_type          VARCHAR(10) NOT NULL,
+    competition_id      INTEGER REFERENCES competitions(competition_id),
+    confidence          VARCHAR(15) NOT NULL,
+    n_simulations       INTEGER NOT NULL,
+    -- Accountability
+    actual_score        VARCHAR(10),  -- Filled after match played
+    prediction_correct  BOOLEAN,      -- Did highest-prob outcome occur?
+    brier_score         REAL,         -- Prediction calibration metric
+    -- Metadata
+    created_at          TIMESTAMP DEFAULT NOW(),
+    key_factors         JSONB         -- Stored explanatory factors
+);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_fixture
+    ON predictions (fixture_id);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_teams
+    ON predictions (team_a_id, team_b_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_accuracy
+    ON predictions (model_version, created_at)
+    WHERE brier_score IS NOT NULL;
+
+-- Tournament simulation results (cached)
+CREATE TABLE IF NOT EXISTS tournament_simulations (
+    simulation_id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    competition_id      INTEGER NOT NULL REFERENCES competitions(competition_id),
+    season_id           INTEGER NOT NULL,
+    tournament_name     VARCHAR(200) NOT NULL,
+    format_type         VARCHAR(50) NOT NULL,
+    n_simulations       INTEGER NOT NULL,
+    model_version       VARCHAR(20) NOT NULL DEFAULT 'v1.0',
+    results             JSONB NOT NULL,  -- Full TournamentResult serialised
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_sims_competition
+    ON tournament_simulations (competition_id, season_id, created_at DESC);

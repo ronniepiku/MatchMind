@@ -44,8 +44,22 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     });
 
     if (!response.ok) {
-        const errorBody = await response.text().catch(() => "Unknown error");
-        throw new ApiError(response.status, errorBody);
+        // Parse structured error response; never expose raw server details
+        let message = "Request failed";
+        try {
+            const errorData = await response.json();
+            if (errorData.detail && typeof errorData.detail === "string") {
+                // Only use server message for client errors (4xx), sanitize 5xx
+                message = response.status >= 500
+                    ? "Server error. Please try again later."
+                    : errorData.detail;
+            }
+        } catch {
+            if (response.status >= 500) {
+                message = "Server error. Please try again later.";
+            }
+        }
+        throw new ApiError(response.status, message);
     }
 
     return response.json() as Promise<T>;

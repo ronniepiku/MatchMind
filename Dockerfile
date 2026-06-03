@@ -1,6 +1,5 @@
 # Multi-stage Dockerfile for Football Analytics
-# Stage 1: Base with uv and Python
-# Stage 2: App with dependencies installed
+# Optimised for Railway deployment with health checks
 
 # --- Base Stage ---
 FROM python:3.11-slim AS base
@@ -9,6 +8,7 @@ FROM python:3.11-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -31,8 +31,9 @@ FROM deps AS app
 
 # Copy application code
 COPY src/ src/
+COPY alembic/ alembic/
+COPY alembic.ini alembic.ini
 COPY data/ data/
-COPY notebooks/ notebooks/
 
 # Run as non-root user
 RUN useradd -r -s /bin/false appuser \
@@ -40,8 +41,12 @@ RUN useradd -r -s /bin/false appuser \
     && chown -R appuser:appuser /app /home/appuser
 USER appuser
 
-# Expose API port
-EXPOSE 8080
+# Health check for container orchestrators
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/api/v1/health || exit 1
 
-# Default: run the API server
-CMD ["uv", "run", "fb-api"]
+# Expose API port (Railway sets PORT env var)
+EXPOSE ${PORT:-8080}
+
+# Run migrations then start API server
+CMD ["sh", "-c", "uv run alembic upgrade head 2>/dev/null; uv run uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}"]

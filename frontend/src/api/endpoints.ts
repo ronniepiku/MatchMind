@@ -17,6 +17,15 @@ import type {
     SimulationResult,
     SimilarPlayer,
     DataAvailability,
+    MatchPrediction,
+    TeamRatingsResponse,
+    CalendarResponse,
+    PreMatchPack,
+    WeeklyBriefing,
+    PlayerAssessmentResult,
+    QueryListResponse,
+    QueryResult,
+    CacheStats,
 } from "./types";
 
 // ─── Reference Data ───────────────────────────────────────
@@ -109,3 +118,61 @@ export const fetchSimilarPlayers = (playerId: number, topN?: number, seasonId?: 
         top_n: topN ?? 10,
         season_id: seasonId,
     });
+
+// ─── Prediction Engine ────────────────────────────────────
+export const predictMatch = (
+    teamAId: number,
+    teamBId: number,
+    venueType: "home" | "away" | "neutral",
+    competitionId?: number,
+) =>
+    api.post<MatchPrediction>("/predict/match", {
+        team_a_id: teamAId,
+        team_b_id: teamBId,
+        venue_type: venueType,
+        competition_id: competitionId,
+    });
+
+export const fetchTeamRatings = (competitionId?: number) =>
+    api.get<TeamRatingsResponse>("/predict/ratings", {
+        competition_id: competitionId,
+    });
+
+// ─── Matchday Operations ──────────────────────────────────
+export const fetchCalendar = (daysAhead = 14, daysBehind = 7) =>
+    api.get<CalendarResponse>("/matchday/calendar", {
+        days_ahead: daysAhead,
+        days_behind: daysBehind,
+    });
+
+export const fetchPreMatchPack = (fixtureId: number) =>
+    api.get<PreMatchPack>(`/matchday/fixtures/${fixtureId}/pre-match`);
+
+// ─── Executive Reporting ──────────────────────────────────
+export const fetchWeeklyBriefing = (teamId: number, seasonId?: number) =>
+    api.get<WeeklyBriefing>("/executive/weekly-briefing", {
+        team_id: teamId,
+        season_id: seasonId,
+    });
+
+export const fetchPlayerAssessment = (playerId: number, seasonId?: number) =>
+    api.post<PlayerAssessmentResult>("/executive/player-assessment", {
+        player_id: playerId,
+        season_id: seasonId,
+    });
+
+// ─── Analysis Workbench ───────────────────────────────────
+export const fetchAnalysisQueries = () =>
+    api.get<QueryListResponse>("/analysis/queries");
+
+export const executeAnalysisQuery = (queryId: string, parameters: Record<string, unknown>) =>
+    api.post<QueryResult>("/analysis/query", {
+        query_id: queryId,
+        parameters,
+    });
+
+// ─── Cache & System ───────────────────────────────────────
+export const fetchCacheStats = () => api.get<CacheStats>("/cache/stats");
+
+export const invalidateCache = (name?: string) =>
+    api.post<{ invalidated: number }>("/cache/invalidate", { name });

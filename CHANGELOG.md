@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] — 2026-06-03
+
+### Added — Prediction Engine (Phase 1)
+
+- **Match predictor** (`prediction/match_predictor.py`): Dixon-Coles model with exponential decay, home advantage factors, and multi-format prediction output (probabilities, scores, markets)
+- **Team rating system** (`prediction/team_rating.py`): Bayesian ELO-style ratings with offensive/defensive decomposition, form weighting, and confidence intervals
+- **Tactical matchup analysis** (`prediction/tactical_matchup.py`): Style-based head-to-head assessment with pressing resistance, build-up compatibility, and set-piece vulnerability scoring
+- **Tournament simulation** (`prediction/tournament.py`): Monte Carlo tournament progression (supports group stages, knockouts, seeded draws) with team qualification probabilities
+- **Model versioning** (`prediction/model_versioning.py`): Prediction accuracy tracking with Brier score calculation, calibration analysis, rolling accuracy dashboards
+
+### Added — Matchday Operations (Phase 2)
+
+- **Fixture management** (`matchday/fixtures.py`): Competition-aware fixture calendar with status lifecycle (scheduled → preview → in-progress → completed → reviewed)
+- **Pre-match packs** (`matchday/pre_match.py`): Automated analyst-ready dossiers combining opponent profile, prediction, tactical suggestions, and key threats
+- **Post-match processing** (`matchday/post_match.py`): Automated result ingestion, actual-vs-predicted comparison, xG narrative, and performance flags
+- **Match reviews** (`matchday/reviews.py`): Structured post-match review workflows with tactical observations, player ratings, and lesson extraction
+
+### Added — Executive Reporting (Phase 3)
+
+- **Executive intelligence** (`reports/executive.py`): RAG traffic-light reporting (weekly briefings, player assessments, competition outlooks, post-match summaries) designed for Director of Football / Board consumption
+- 4 new API endpoints: `/executive/weekly-briefing`, `/executive/player-assessment`, `/executive/competition-outlook`, `/executive/post-match-summary`
+
+### Added — Ad-Hoc Analysis Toolkit (Phase 4)
+
+- **Parameterised query library** (`analysis/queries.py`): 21 production-grade SQL queries across 8 categories (Pressing, Build-Up, Chance Creation, Defence, Set Pieces, Scouting, H2H, Form). All parameterised to prevent injection
+- 2 new API endpoints: `GET /analysis/queries` (catalogue), `POST /analysis/query` (execution)
+
+### Added — Data Infrastructure (Phase 5)
+
+- **Ingestion orchestrator** (`ingest_orchestrator.py`): Multi-competition incremental sync with delta detection, competition registry, and CLI interface
+- **Database migrations** (`alembic/`): Alembic integration with environment-aware configuration. Initial migration includes all schema + v0.5.0 additions
+- **Data validation pipeline** (`validation.py`): 7-check quality gate (schema, event types, coordinates, xG bounds, temporal order, null rates, duplicates) with DB-persisted audit trail
+- **Railway deployment support**: `railway.toml`, `DATABASE_URL` support in config, health check endpoints, production Dockerfile with auto-migrations
+
+### Added — Frontend Pages
+
+- **Predictions page** (`pages/Predictions.tsx`): Match predictor form, team ratings table, tournament simulation tab
+- **Matchday Calendar** (`pages/MatchdayCalendar.tsx`): Fixture timeline with status indicators, pre-match pack generation, recent results
+- **Analysis Workbench** (`pages/AnalysisWorkbench.tsx`): Category-filtered query selector, parameter forms, interactive results table with CSV export
+- **Typed API layer** (`api/endpoints.ts`, `api/types.ts`): Full TypeScript types and fetch functions for all new backend endpoints
+- Sidebar navigation updated with Brain, Calendar, FlaskConical icons
+
+### Added — System Endpoints
+
+- `GET /api/v1/cache/stats` — Parquet cache statistics
+- `POST /api/v1/cache/invalidate` — Cache invalidation by name
+- `GET /api/v1/system/health/db` — Deep database connectivity check
+- `GET /api/v1/system/validation/{match_id}` — On-demand data quality validation
+
+### Changed
+
+- `config.py`: Supports `DATABASE_URL` environment variable (Railway/Heroku style) with automatic `postgres://` → `postgresql+psycopg2://` rewrite
+- `Dockerfile`: Multi-stage build with health checks, auto-migration on startup, non-root user, Railway `PORT` support
+- `.github/workflows/ci.yml`: Added lint, typecheck, security audit, and frontend build jobs alongside existing test matrix
+- `.env.example`: Extended with cache, validation, ingestion, and Railway configuration variables
+- `pyproject.toml`: Version 0.5.0, alembic already in dependencies
+
+### Added — Testing
+
+- `tests/test_executive.py` (17 tests): RAG status, dataclass structure, report generation with mocked DB
+- `tests/test_queries.py` (11 tests): Query catalogue, category filtering, parameter validation, execution
+- `tests/test_infra.py` (11 tests): Competition registry, ingestion orchestrator, model versioning
+- Full suite: 180 tests passing
+
+---
+
 ## [0.4.0] — 2026-05-20
 
 ### Added — Frontend Dashboard

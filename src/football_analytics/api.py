@@ -21,30 +21,84 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
+
+# ─── Rate Limiter Setup ─────────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 app = FastAPI(
     title="Football Analytics API",
     description="REST API for StatsBomb-based football data analysis",
-    version="0.3.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    version="0.5.0",
+    docs_url="/docs" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
+    redoc_url="/redoc" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ─── Request Logging Middleware ─────────────────────────────────────────────
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log all requests with method, path, status, and duration."""
+
+    async def dispatch(self, request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "%s %s → %d (%.1fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
+
+
+# ─── Global Exception Handler ───────────────────────────────────────────────
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions — never leak stack traces to clients."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # CORS for frontend integrations
 _allowed_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173",
 ).split(",")
+_validated_origins = [
+    o.strip()
+    for o in _allowed_origins
+    if o.strip().startswith(("http://", "https://"))
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _allowed_origins],
+    allow_origins=_validated_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
@@ -235,7 +289,8 @@ async def predict_xg(shot: ShotInput) -> XGPredictionResponse:
 
 
 @app.post("/api/v1/simulation/match-direct", response_model=SimulationResponse)
-async def simulate_match_endpoint(request: SimulationRequest) -> SimulationResponse:
+@limiter.limit("20/minute")
+async def simulate_match_endpoint(request: Request, sim_req: SimulationRequest) -> SimulationResponse:
     """Simulate a match outcome using Monte Carlo methods.
 
     Uses Poisson distribution with given xG values to simulate
@@ -244,12 +299,12 @@ async def simulate_match_endpoint(request: SimulationRequest) -> SimulationRespo
     from football_analytics.analysis.simulation import simulate_match
 
     result = simulate_match(
-        home_xg=request.home_xg,
-        away_xg=request.away_xg,
-        home_team=request.home_team,
-        away_team=request.away_team,
-        n_simulations=request.n_simulations,
-        home_advantage_factor=request.home_advantage_factor,
+        home_xg=sim_req.home_xg,
+        away_xg=sim_req.away_xg,
+        home_team=sim_req.home_team,
+        away_team=sim_req.away_team,
+        n_simulations=sim_req.n_simulations,
+        home_advantage_factor=sim_req.home_advantage_factor,
     )
 
     # Convert scoreline tuples to string keys for JSON
@@ -793,25 +848,29 @@ async def get_opponent_report(
             shots = int(row.get("shots", 0))
             goals = int(row.get("goals", 0))
             success_rate = shots / max(possessions, 1)
-            attack_patterns.append({
-                "pattern_type": row.get("play_pattern", "Unknown"),
-                "frequency": possessions,
-                "success_rate": round(success_rate, 3),
-                "xg_per_attack": round(float(row.get("avg_xg", 0) or 0), 3),
-            })
+            attack_patterns.append(
+                {
+                    "pattern_type": row.get("play_pattern", "Unknown"),
+                    "frequency": possessions,
+                    "success_rate": round(success_rate, 3),
+                    "xg_per_attack": round(float(row.get("avg_xg", 0) or 0), 3),
+                }
+            )
 
     # Transform defensive_shape DataFrame
     defensive_shape = []
     ds_df = report.get("defensive_shape")
     if ds_df is not None and hasattr(ds_df, "empty") and not ds_df.empty:
         for _, row in ds_df.iterrows():
-            defensive_shape.append({
-                "zone": row.get("zone", "Unknown"),
-                "tackles": int(row.get("tackles", 0)),
-                "interceptions": int(row.get("interceptions", 0)),
-                "pressures": int(row.get("pressures", 0)),
-                "recoveries": int(row.get("blocks", 0)),
-            })
+            defensive_shape.append(
+                {
+                    "zone": row.get("zone", "Unknown"),
+                    "tackles": int(row.get("tackles", 0)),
+                    "interceptions": int(row.get("interceptions", 0)),
+                    "pressures": int(row.get("pressures", 0)),
+                    "recoveries": int(row.get("blocks", 0)),
+                }
+            )
 
     # Transform key_players DataFrame
     key_players = []
@@ -822,16 +881,18 @@ async def get_opponent_report(
             xa = float(row.get("total_xa", 0) or 0)
             matches = int(row.get("matches", 1))
             threat = round((xg + xa) / max(matches, 1) * 10, 1)
-            key_players.append({
-                "player_name": row.get("player_name", "Unknown"),
-                "position": "FW",
-                "goals": int(row.get("shots", 0)),
-                "assists": int(row.get("key_passes", 0)),
-                "xg": round(xg, 2),
-                "xa": round(xa, 2),
-                "minutes": matches * 90,
-                "threat_rating": min(threat, 10.0),
-            })
+            key_players.append(
+                {
+                    "player_name": row.get("player_name", "Unknown"),
+                    "position": "FW",
+                    "goals": int(row.get("shots", 0)),
+                    "assists": int(row.get("key_passes", 0)),
+                    "xg": round(xg, 2),
+                    "xa": round(xa, 2),
+                    "minutes": matches * 90,
+                    "threat_rating": min(threat, 10.0),
+                }
+            )
 
     return {
         "team_name": team_name,
@@ -901,14 +962,16 @@ async def get_player_rolling_form(
     results = []
     for _, row in form_data.iterrows():
         match_date = str(row.get("match_date", ""))
-        results.append({
-            "match_date": match_date,
-            "match_label": match_date[:10] if match_date else "",
-            "xg": round(float(row.get("match_xg", 0) or 0), 3),
-            "xa": round(float(row.get("match_xa", 0) or 0), 3),
-            "xg_rolling": round(float(row.get("rolling_xg", 0) or 0), 3),
-            "xa_rolling": round(float(row.get("rolling_xa", 0) or 0), 3),
-        })
+        results.append(
+            {
+                "match_date": match_date,
+                "match_label": match_date[:10] if match_date else "",
+                "xg": round(float(row.get("match_xg", 0) or 0), 3),
+                "xa": round(float(row.get("match_xa", 0) or 0), 3),
+                "xg_rolling": round(float(row.get("rolling_xg", 0) or 0), 3),
+                "xa_rolling": round(float(row.get("rolling_xa", 0) or 0), 3),
+            }
+        )
     return results
 
 
@@ -943,11 +1006,13 @@ async def get_player_radar(
     for col, label in metric_labels.items():
         if col in row.index:
             pct = float(row[col])
-            results.append({
-                "metric": label,
-                "value": round(pct, 1),
-                "percentile": round(pct, 1),
-            })
+            results.append(
+                {
+                    "metric": label,
+                    "value": round(pct, 1),
+                    "percentile": round(pct, 1),
+                }
+            )
     return results
 
 
@@ -978,16 +1043,18 @@ async def get_squad_comparison(
         xa_per_90 = total_xa / max(appearances, 1)
         # Rating: weighted combination of offensive output
         rating = min(10.0, round((xg_per_90 + xa_per_90) * 5 + 4, 1))
-        results.append({
-            "player_name": row.get("player_name", "Unknown"),
-            "position": "MF",
-            "minutes": appearances * 90,
-            "goals": goals,
-            "assists": assists,
-            "xg_per_90": round(xg_per_90, 2),
-            "xa_per_90": round(xa_per_90, 2),
-            "rating": rating,
-        })
+        results.append(
+            {
+                "player_name": row.get("player_name", "Unknown"),
+                "position": "MF",
+                "minutes": appearances * 90,
+                "goals": goals,
+                "assists": assists,
+                "xg_per_90": round(xg_per_90, 2),
+                "xa_per_90": round(xa_per_90, 2),
+                "rating": rating,
+            }
+        )
     return results
 
 
@@ -1091,7 +1158,11 @@ async def get_team_scorecard(
 
     # Pressing intensity by zone
     pressing_data = []
-    if defensive_shape is not None and hasattr(defensive_shape, "iterrows") and not defensive_shape.empty:
+    if (
+        defensive_shape is not None
+        and hasattr(defensive_shape, "iterrows")
+        and not defensive_shape.empty
+    ):
         for _, zone_data in defensive_shape.iterrows():
             pressing_data.append(
                 {
@@ -1425,7 +1496,8 @@ class SimulationV2Request(BaseModel):
 
 
 @app.post("/api/v1/simulation/match")
-async def simulate_match_v2(request: SimulationV2Request) -> dict[str, Any]:
+@limiter.limit("20/minute")
+async def simulate_match_v2(request: Request, sim_req: SimulationV2Request) -> dict[str, Any]:
     """Run match simulation (v2 endpoint for dashboard).
 
     Accepts home_team_id, away_team_id, season_id and computes
@@ -1437,9 +1509,9 @@ async def simulate_match_v2(request: SimulationV2Request) -> dict[str, Any]:
     from football_analytics.analysis.simulation import simulate_match
     from football_analytics.db import get_engine as _get_engine
 
-    home_team_id = request.home_team_id
-    away_team_id = request.away_team_id
-    season_id = request.season_id
+    home_team_id = sim_req.home_team_id
+    away_team_id = sim_req.away_team_id
+    season_id = sim_req.season_id
 
     engine = _get_engine()
 
@@ -1522,6 +1594,797 @@ async def simulate_match_v2(request: SimulationV2Request) -> dict[str, Any]:
         "btts_prob": round(result.btts_prob, 4),
         "scoreline_distribution": scoreline_dist,
     }
+
+
+# ============================================================================
+# Prediction Engine Endpoints
+# ============================================================================
+
+
+class MatchPredictionRequest(BaseModel):
+    """Request body for match prediction."""
+
+    team_a_id: int = Field(..., description="First team ID")
+    team_b_id: int = Field(..., description="Second team ID")
+    competition_id: int | None = Field(
+        None, description="Competition context for ratings"
+    )
+    venue_type: str = Field("neutral", description="Venue: 'home', 'away', 'neutral'")
+    n_simulations: int = Field(10000, ge=100, le=100000)
+
+
+class TournamentSimulationRequest(BaseModel):
+    """Request body for tournament simulation."""
+
+    competition_id: int = Field(..., description="Competition ID")
+    format_type: str = Field(
+        ..., description="Format: 'league', 'groups_knockout', 'knockout'"
+    )
+    groups: list[dict[str, Any]] | None = Field(
+        None, description="Group configurations"
+    )
+    team_ids: list[int] | None = Field(
+        None, description="Team IDs (for league/knockout)"
+    )
+    n_simulations: int = Field(10000, ge=100, le=100000)
+    best_third_place_count: int = Field(0, ge=0)
+    knockout_rounds: int = Field(0, ge=0)
+
+
+@app.post("/api/v1/predict/match")
+@limiter.limit("20/minute")
+async def predict_match(request: Request, pred_req: MatchPredictionRequest) -> dict[str, Any]:
+    """Predict match outcome for any two teams.
+
+    Competition-agnostic: works for Premier League, Champions League,
+    World Cup, or any competition. Combines team strength ratings,
+    head-to-head history, and venue context.
+    """
+    from football_analytics.db import get_engine as _get_engine
+    from football_analytics.prediction.match_predictor import MatchPredictor, VenueType
+
+    engine = _get_engine()
+    predictor = MatchPredictor(engine=engine, n_simulations=pred_req.n_simulations)
+
+    try:
+        venue = VenueType(pred_req.venue_type)
+    except ValueError:
+        venue = VenueType.NEUTRAL
+
+    try:
+        prediction = predictor.predict(
+            team_a_id=pred_req.team_a_id,
+            team_b_id=pred_req.team_b_id,
+            competition_id=pred_req.competition_id,
+            venue_type=venue,
+        )
+    except Exception as exc:
+        logger.exception("Match prediction failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    # Serialise scoreline probabilities
+    top_scores = sorted(
+        prediction.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True
+    )[:15]
+
+    return {
+        "team_a": {"id": prediction.team_a_id, "name": prediction.team_a_name},
+        "team_b": {"id": prediction.team_b_id, "name": prediction.team_b_name},
+        "probabilities": {
+            "team_a_win": prediction.team_a_win_prob,
+            "draw": prediction.draw_prob,
+            "team_b_win": prediction.team_b_win_prob,
+        },
+        "expected_goals": {
+            "team_a": prediction.team_a_expected_xg,
+            "team_b": prediction.team_b_expected_xg,
+        },
+        "most_likely_score": f"{prediction.most_likely_score[0]}-{prediction.most_likely_score[1]}",
+        "markets": {
+            "over_1_5": prediction.over_1_5_prob,
+            "over_2_5": prediction.over_2_5_prob,
+            "over_3_5": prediction.over_3_5_prob,
+            "btts": prediction.btts_prob,
+        },
+        "scoreline_distribution": [
+            {"score": f"{h}-{a}", "probability": prob} for (h, a), prob in top_scores
+        ],
+        "confidence": prediction.confidence,
+        "venue_type": prediction.venue_type,
+        "n_simulations": prediction.n_simulations,
+        "key_factors": [
+            {
+                "dimension": f.dimension,
+                "description": f.description,
+                "impact": f.impact,
+            }
+            for f in prediction.key_factors
+        ],
+        "head_to_head": (
+            {
+                "matches_played": prediction.head_to_head.matches_played,
+                "team_a_wins": prediction.head_to_head.team_a_wins,
+                "draws": prediction.head_to_head.draws,
+                "team_b_wins": prediction.head_to_head.team_b_wins,
+            }
+            if prediction.head_to_head
+            else None
+        ),
+        "model_version": prediction.model_version,
+    }
+
+
+@app.get("/api/v1/predict/ratings")
+async def get_team_ratings(
+    competition_id: int | None = Query(None, description="Filter by competition"),
+    season_id: int | None = Query(None, description="Filter by season"),
+) -> list[dict[str, Any]]:
+    """Get current team strength ratings.
+
+    Returns all rated teams sorted by overall rating, optionally
+    filtered by competition.
+    """
+    from football_analytics.db import get_engine as _get_engine
+    from football_analytics.prediction.team_rating import TeamRatingEngine
+
+    engine = _get_engine()
+    rating_engine = TeamRatingEngine(engine=engine)
+
+    comp_ids = [competition_id] if competition_id else None
+    season_ids = [season_id] if season_id else None
+    ratings = rating_engine.compute_ratings(
+        competition_ids=comp_ids, season_ids=season_ids
+    )
+
+    results = []
+    for tid, rating in sorted(
+        ratings.items(), key=lambda x: x[1].overall_rating, reverse=True
+    ):
+        results.append(
+            {
+                "team_id": rating.team_id,
+                "team_name": rating.team_name,
+                "overall_rating": rating.overall_rating,
+                "offensive_strength": rating.offensive_strength,
+                "defensive_strength": rating.defensive_strength,
+                "pressing_intensity": rating.pressing_intensity,
+                "possession_dominance": rating.possession_dominance,
+                "set_piece_threat": rating.set_piece_threat,
+                "directness": rating.directness,
+                "form_trend": rating.form_trend,
+                "matches_used": rating.matches_used,
+                "confidence": rating.confidence,
+            }
+        )
+
+    return results
+
+
+@app.get("/api/v1/predict/matchup/{team_a_id}/{team_b_id}")
+async def get_tactical_matchup(
+    team_a_id: int,
+    team_b_id: int,
+    competition_id: int | None = Query(None),
+    season_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Analyse tactical matchup between two teams.
+
+    Compares team profiles across pressing, build-up, defensive shape,
+    set pieces, and transitions. Returns advantage scores and
+    coaching-friendly narrative.
+    """
+    from football_analytics.db import get_engine as _get_engine
+    from football_analytics.prediction.tactical_matchup import analyse_matchup
+
+    engine = _get_engine()
+    matchup = analyse_matchup(
+        team_a_id=team_a_id,
+        team_b_id=team_b_id,
+        competition_id=competition_id,
+        season_id=season_id,
+        engine=engine,
+    )
+
+    return {
+        "team_a": {"id": matchup.team_a_id, "name": matchup.team_a_name},
+        "team_b": {"id": matchup.team_b_id, "name": matchup.team_b_name},
+        "overall_advantage": matchup.overall_advantage,
+        "dimensions": [
+            {
+                "name": d.name,
+                "team_a_score": d.team_a_score,
+                "team_b_score": d.team_b_score,
+                "advantage": d.advantage,
+                "description": d.description,
+            }
+            for d in matchup.dimensions
+        ],
+        "key_battles": [
+            {
+                "area": b.area,
+                "team_a_factor": b.team_a_factor,
+                "team_b_factor": b.team_b_factor,
+                "significance": b.significance,
+                "narrative": b.narrative,
+            }
+            for b in matchup.key_battles
+        ],
+        "tactical_narrative": matchup.tactical_narrative,
+        "recommendations": matchup.recommendations,
+        "matches_analysed": {
+            "team_a": matchup.matches_analysed_a,
+            "team_b": matchup.matches_analysed_b,
+        },
+    }
+
+
+@app.post("/api/v1/predict/tournament")
+@limiter.limit("5/minute")
+async def simulate_tournament(request: Request, tourn_req: TournamentSimulationRequest) -> dict[str, Any]:
+    """Simulate an entire tournament/competition.
+
+    Supports any format: league (round-robin), groups+knockout (World Cup,
+    Champions League), or straight knockout (FA Cup). Format is defined
+    by the request parameters, not hardcoded.
+    """
+    from football_analytics.db import get_engine as _get_engine
+    from football_analytics.prediction.team_rating import TeamRatingEngine
+    from football_analytics.prediction.tournament import (
+        CompetitionFormat,
+        GroupConfig,
+        TournamentFormat,
+        TournamentSimulator,
+    )
+
+    engine = _get_engine()
+    rating_engine = TeamRatingEngine(engine=engine)
+
+    # Compute ratings for the competition context
+    comp_ids = [tourn_req.competition_id] if tourn_req.competition_id else None
+    ratings = rating_engine.compute_ratings(competition_ids=comp_ids)
+
+    # Build tournament format from request
+    fmt_type = CompetitionFormat(tourn_req.format_type)
+
+    if fmt_type == CompetitionFormat.LEAGUE:
+        if not tourn_req.team_ids:
+            raise HTTPException(
+                status_code=400, detail="team_ids required for league format"
+            )
+        fmt = TournamentFormat.premier_league(tourn_req.team_ids)
+    elif fmt_type == CompetitionFormat.GROUPS_KNOCKOUT:
+        if not tourn_req.groups:
+            raise HTTPException(
+                status_code=400, detail="groups required for groups_knockout format"
+            )
+        group_configs = [
+            GroupConfig(
+                group_name=g.get("group_name", f"Group {i+1}"),
+                team_ids=g["team_ids"],
+                teams_advancing=g.get("teams_advancing", 2),
+            )
+            for i, g in enumerate(tourn_req.groups)
+        ]
+        fmt = TournamentFormat(
+            format_type=fmt_type,
+            name="Tournament",
+            groups=group_configs,
+            best_third_place_count=tourn_req.best_third_place_count,
+            knockout_rounds=tourn_req.knockout_rounds,
+            extra_time=True,
+            penalties=True,
+        )
+    elif fmt_type == CompetitionFormat.KNOCKOUT:
+        if not tourn_req.team_ids:
+            raise HTTPException(
+                status_code=400, detail="team_ids required for knockout format"
+            )
+        fmt = TournamentFormat.knockout_cup(tourn_req.team_ids)
+    else:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported format: {tourn_req.format_type}"
+        )
+
+    # Run simulation
+    simulator = TournamentSimulator(ratings=ratings)
+    result = simulator.simulate(fmt, n_simulations=tourn_req.n_simulations)
+
+    # Serialise results
+    team_results = []
+    for tid, tr in sorted(
+        result.team_results.items(), key=lambda x: x[1].winner_prob, reverse=True
+    ):
+        team_results.append(
+            {
+                "team_id": tr.team_id,
+                "team_name": tr.team_name,
+                "group_name": tr.group_name,
+                "group_advance_prob": tr.group_advance_prob,
+                "round_of_32_prob": tr.round_of_32_prob,
+                "round_of_16_prob": tr.round_of_16_prob,
+                "quarter_final_prob": tr.quarter_final_prob,
+                "semi_final_prob": tr.semi_final_prob,
+                "final_prob": tr.final_prob,
+                "winner_prob": tr.winner_prob,
+                # League metrics
+                "expected_points": tr.expected_points,
+                "expected_position": tr.expected_position,
+                "title_prob": tr.title_prob,
+                "top_4_prob": tr.top_4_prob,
+                "relegation_prob": tr.relegation_prob,
+            }
+        )
+
+    return {
+        "tournament_name": result.tournament_name,
+        "format_type": result.format_type,
+        "n_simulations": result.n_simulations,
+        "team_results": team_results,
+    }
+
+
+# ============================================================================
+# Matchday Operations Endpoints
+# ============================================================================
+
+
+class FixtureCreateRequest(BaseModel):
+    competition_id: int
+    season_id: int
+    match_date: str = Field(..., description="ISO date YYYY-MM-DD")
+    kick_off: str | None = None
+    home_team_id: int
+    away_team_id: int
+    venue_type: str = "home"
+    stage: str = ""
+    matchday: int = 0
+
+
+class FixtureBatchCreateRequest(BaseModel):
+    fixtures: list[FixtureCreateRequest]
+
+
+class PreMatchRequest(BaseModel):
+    our_team_id: int | None = None
+
+
+class PostMatchRequest(BaseModel):
+    match_id: int
+    our_team_id: int | None = None
+
+
+@app.get("/api/v1/matchday/fixtures")
+def get_matchday_fixtures(
+    competition_id: int | None = Query(None),
+    status: str | None = Query(None),
+    days_ahead: int = Query(14),
+    team_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Get fixtures with optional filters."""
+    from datetime import date, timedelta
+
+    from football_analytics.matchday.fixtures import FixtureManager, FixtureStatus
+
+    try:
+        manager = FixtureManager()
+        status_enum = FixtureStatus(status) if status else None
+        fixtures = manager.get_fixtures(
+            competition_id=competition_id,
+            status=status_enum,
+            from_date=date.today(),
+            to_date=date.today() + timedelta(days=days_ahead),
+            team_id=team_id,
+        )
+        return {
+            "count": len(fixtures),
+            "fixtures": [manager._fixture_to_dict(f) for f in fixtures],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/matchday/calendar")
+def get_matchday_calendar(
+    days_ahead: int = Query(14),
+    days_behind: int = Query(7),
+) -> dict[str, Any]:
+    """Get calendar summary for the matchday dashboard."""
+    from football_analytics.matchday.fixtures import FixtureManager
+
+    try:
+        manager = FixtureManager()
+        return manager.get_calendar_summary(
+            days_ahead=days_ahead, days_behind=days_behind
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/matchday/fixtures")
+def create_fixture(request: FixtureCreateRequest) -> dict[str, Any]:
+    """Create a new fixture."""
+    from datetime import date as date_type
+
+    from football_analytics.matchday.fixtures import Fixture, FixtureManager
+
+    try:
+        manager = FixtureManager()
+        fixture = Fixture(
+            competition_id=request.competition_id,
+            season_id=request.season_id,
+            match_date=date_type.fromisoformat(request.match_date),
+            kick_off=request.kick_off,
+            home_team_id=request.home_team_id,
+            away_team_id=request.away_team_id,
+            venue_type=request.venue_type,
+            stage=request.stage,
+            matchday=request.matchday,
+        )
+        fixture_id = manager.create_fixture(fixture)
+        return {"fixture_id": fixture_id, "status": "created"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/matchday/fixtures/batch")
+def create_fixtures_batch(request: FixtureBatchCreateRequest) -> dict[str, Any]:
+    """Create multiple fixtures in a single request."""
+    from datetime import date as date_type
+
+    from football_analytics.matchday.fixtures import Fixture, FixtureManager
+
+    try:
+        manager = FixtureManager()
+        fixtures = [
+            Fixture(
+                competition_id=f.competition_id,
+                season_id=f.season_id,
+                match_date=date_type.fromisoformat(f.match_date),
+                kick_off=f.kick_off,
+                home_team_id=f.home_team_id,
+                away_team_id=f.away_team_id,
+                venue_type=f.venue_type,
+                stage=f.stage,
+                matchday=f.matchday,
+            )
+            for f in request.fixtures
+        ]
+        ids = manager.create_fixtures_batch(fixtures)
+        return {"fixture_ids": ids, "count": len(ids)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.put("/api/v1/matchday/fixtures/{fixture_id}/status")
+def update_fixture_status(
+    fixture_id: int,
+    status: str = Query(..., description="New status value"),
+    match_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Update fixture lifecycle status."""
+    from football_analytics.matchday.fixtures import FixtureManager, FixtureStatus
+
+    try:
+        status_enum = FixtureStatus(status)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Must be one of: {[s.value for s in FixtureStatus]}",
+        )
+
+    try:
+        manager = FixtureManager()
+        manager.update_status(fixture_id, status_enum, match_id=match_id)
+        return {"fixture_id": fixture_id, "status": status_enum.value}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/matchday/fixtures/{fixture_id}/pre-match")
+def get_pre_match_pack(
+    fixture_id: int,
+    our_team_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Generate or retrieve pre-match intelligence pack."""
+    from dataclasses import asdict
+
+    from football_analytics.matchday.pre_match import generate_pre_match_pack
+
+    try:
+        pack = generate_pre_match_pack(
+            fixture_id=fixture_id,
+            our_team_id=our_team_id,
+        )
+        result = asdict(pack)
+        # Serialise datetime
+        result["generated_at"] = pack.generated_at.isoformat()
+        if pack.match_date:
+            result["match_date"] = pack.match_date.isoformat()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Pre-match pack generation failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/matchday/fixtures/{fixture_id}/post-match")
+def generate_post_match(
+    fixture_id: int,
+    request: PostMatchRequest,
+) -> dict[str, Any]:
+    """Generate post-match review for a completed fixture."""
+    from dataclasses import asdict
+
+    from football_analytics.matchday.post_match import generate_post_match_review
+
+    try:
+        review = generate_post_match_review(
+            match_id=request.match_id,
+            our_team_id=request.our_team_id,
+            fixture_id=fixture_id,
+        )
+        result = asdict(review)
+        result["generated_at"] = review.generated_at.isoformat()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Post-match review generation failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/matchday/needing-preview")
+def get_fixtures_needing_preview() -> dict[str, Any]:
+    """Get fixtures that need pre-match packs (within 3 days, no pack yet)."""
+    from football_analytics.matchday.fixtures import FixtureManager
+
+    try:
+        manager = FixtureManager()
+        fixtures = manager.get_needing_preview()
+        return {
+            "count": len(fixtures),
+            "fixtures": [manager._fixture_to_dict(f) for f in fixtures],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/matchday/needing-review")
+def get_fixtures_needing_review() -> dict[str, Any]:
+    """Get completed fixtures that haven't been reviewed."""
+    from football_analytics.matchday.fixtures import FixtureManager
+
+    try:
+        manager = FixtureManager()
+        fixtures = manager.get_needing_review()
+        return {
+            "count": len(fixtures),
+            "fixtures": [manager._fixture_to_dict(f) for f in fixtures],
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ============================================================================
+# Executive Intelligence Endpoints
+# ============================================================================
+
+
+class PlayerAssessmentRequest(BaseModel):
+    player_id: int
+    season_id: int | None = None
+
+
+class CompetitionOutlookRequest(BaseModel):
+    team_id: int
+    competition_id: int
+    season_id: int
+
+
+class PostMatchSummaryRequest(BaseModel):
+    match_id: int
+    our_team_id: int | None = None
+
+
+@app.get("/api/v1/executive/weekly-briefing")
+def get_weekly_briefing(
+    team_id: int = Query(...),
+    season_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Generate weekly executive briefing."""
+    from dataclasses import asdict
+
+    from football_analytics.reports.executive import ExecutiveReportGenerator
+
+    try:
+        gen = ExecutiveReportGenerator()
+        briefing = gen.weekly_briefing(team_id=team_id, season_id=season_id)
+        result = asdict(briefing)
+        result["generated_at"] = briefing.generated_at.isoformat()
+        # Serialise enums
+        result["week_difficulty"] = briefing.week_difficulty.value
+        for m in result.get("squad_metrics", []):
+            m["rag"] = m["rag"].value if hasattr(m.get("rag"), "value") else m["rag"]
+            m["trend"] = (
+                m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
+            )
+        return result
+    except Exception as exc:
+        logger.exception("Weekly briefing generation failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/executive/player-assessment")
+def get_player_assessment(request: PlayerAssessmentRequest) -> dict[str, Any]:
+    """Generate executive player assessment."""
+    from dataclasses import asdict
+
+    from football_analytics.reports.executive import ExecutiveReportGenerator
+
+    try:
+        gen = ExecutiveReportGenerator()
+        assessment = gen.player_assessment(
+            player_id=request.player_id, season_id=request.season_id
+        )
+        result = asdict(assessment)
+        result["trajectory"] = assessment.trajectory.value
+        for k in result.get("kpis", []):
+            k["rag"] = k["rag"].value if hasattr(k.get("rag"), "value") else k["rag"]
+            k["trend"] = (
+                k["trend"].value if hasattr(k.get("trend"), "value") else k["trend"]
+            )
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/executive/competition-outlook")
+def get_competition_outlook(request: CompetitionOutlookRequest) -> dict[str, Any]:
+    """Generate competition campaign outlook."""
+    from dataclasses import asdict
+
+    from football_analytics.reports.executive import ExecutiveReportGenerator
+
+    try:
+        gen = ExecutiveReportGenerator()
+        outlook = gen.competition_outlook(
+            team_id=request.team_id,
+            competition_id=request.competition_id,
+            season_id=request.season_id,
+        )
+        result = asdict(outlook)
+        result["form_rag"] = outlook.form_rag.value
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/executive/post-match-summary")
+def get_post_match_executive_summary(
+    request: PostMatchSummaryRequest,
+) -> dict[str, Any]:
+    """Generate one-page post-match executive summary."""
+    from dataclasses import asdict
+
+    from football_analytics.reports.executive import ExecutiveReportGenerator
+
+    try:
+        gen = ExecutiveReportGenerator()
+        summary = gen.post_match_summary(
+            match_id=request.match_id, our_team_id=request.our_team_id
+        )
+        result = asdict(summary)
+        result["result_rag"] = summary.result_rag.value
+        for m in result.get("key_metrics", []):
+            m["rag"] = m["rag"].value if hasattr(m.get("rag"), "value") else m["rag"]
+            m["trend"] = (
+                m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
+            )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ============================================================================
+# Ad-Hoc Analysis Endpoints
+# ============================================================================
+
+
+class QueryExecutionRequest(BaseModel):
+    query_id: str
+    parameters: dict[str, Any]
+
+
+@app.get("/api/v1/analysis/queries")
+def list_analysis_queries(
+    category: str | None = Query(None),
+) -> dict[str, Any]:
+    """List available analytical queries."""
+    from football_analytics.analysis.queries import AnalyticalQueryLibrary
+
+    try:
+        library = AnalyticalQueryLibrary()
+        queries = library.list_queries(category=category)
+        categories = library.get_categories()
+        return {"categories": categories, "queries": queries, "count": len(queries)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/v1/analysis/query")
+def execute_analysis_query(request: QueryExecutionRequest) -> dict[str, Any]:
+    """Execute a parameterised analytical query."""
+    from football_analytics.analysis.queries import AnalyticalQueryLibrary
+
+    try:
+        library = AnalyticalQueryLibrary()
+        results = library.execute_to_dict(request.query_id, request.parameters)
+        return {
+            "query_id": request.query_id,
+            "parameters": request.parameters,
+            "row_count": len(results),
+            "results": results,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception(f"Query execution failed: {request.query_id}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ============================================================================
+# Cache & System Endpoints
+# ============================================================================
+
+
+@app.get("/api/v1/cache/stats")
+def get_cache_stats():
+    """Get Parquet cache statistics."""
+    from football_analytics.cache import cache_stats
+
+    return cache_stats()
+
+
+class CacheInvalidateRequest(BaseModel):
+    name: str | None = None
+
+
+@app.post("/api/v1/cache/invalidate")
+def invalidate_cache_endpoint(request: CacheInvalidateRequest):
+    """Invalidate cache entries (all or by name prefix)."""
+    from football_analytics.cache import invalidate_cache
+
+    count = invalidate_cache(request.name)
+    return {"invalidated": count}
+
+
+@app.get("/api/v1/system/health/db")
+def db_health_check():
+    """Deep health check — verifies database connectivity."""
+    try:
+        from football_analytics.db import get_engine
+
+        engine = get_engine()
+        from sqlalchemy import text as sql_text
+
+        with engine.connect() as conn:
+            conn.execute(sql_text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Database unhealthy: {exc}")
+
+
+@app.get("/api/v1/system/validation/{match_id}")
+def validate_match(match_id: int):
+    """Run data validation on a specific match."""
+    from football_analytics.validation import DataValidator
+
+    validator = DataValidator(log_to_db=False)
+    report = validator.validate_match_events(match_id)
+    return report.summary
 
 
 def main() -> None:

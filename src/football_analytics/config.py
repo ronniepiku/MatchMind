@@ -16,6 +16,9 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 def _get_password() -> str:
     """Get database password from environment, failing clearly if unset."""
+    # Railway provides DATABASE_URL — if set, password is embedded there
+    if os.getenv("DATABASE_URL"):
+        return ""
     pw = os.getenv("POSTGRES_PASSWORD")
     if not pw:
         raise RuntimeError(
@@ -39,7 +42,22 @@ class DatabaseConfig:
 
     @property
     def url(self) -> str:
-        """SQLAlchemy connection URL."""
+        """SQLAlchemy connection URL.
+
+        Prefers DATABASE_URL (Railway/Heroku style) over individual components.
+        """
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            # Railway uses postgres:// but SQLAlchemy needs postgresql://
+            if database_url.startswith("postgres://"):
+                database_url = database_url.replace(
+                    "postgres://", "postgresql+psycopg2://", 1
+                )
+            elif database_url.startswith("postgresql://"):
+                database_url = database_url.replace(
+                    "postgresql://", "postgresql+psycopg2://", 1
+                )
+            return database_url
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
 

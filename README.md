@@ -1,30 +1,36 @@
 # MatchMind - A football analytics Platform
 
-[![CI](https://github.com/YOUR_USERNAME/football-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/ronniepiku/MatchMind/actions)
+[![CI](https://github.com/ronniepiku/MatchMind/actions/workflows/ci.yml/badge.svg)](https://github.com/ronniepiku/MatchMind/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Match Mind is a **Production-grade football data analysis pipeline**. From raw StatsBomb event data to actionable tactical insights, interactive dashboards, automated PDF reports, Monte Carlo match simulation, and coaching-ready presentations.
+MatchMind is a **production-grade football intelligence platform** designed for elite clubs. From raw StatsBomb event data to match predictions, automated matchday workflows, executive briefings, and ad-hoc analytical queries — all accessible through a React dashboard or REST API.
 
 ## Key Features
 
-- **React analytics dashboard**: Custom-built UI deployed on GitHub Pages with D3 pitch visualisations, dark/light theme
-- **High-performance data pipeline**: COPY-protocol bulk loading + async concurrent fetching (3-4x faster)
+### Intelligence Layer
+- **Match prediction engine**: Dixon-Coles model with team ratings, tactical matchup analysis, and tournament simulation
+- **Matchday operations**: Fixture calendar with status lifecycle, pre-match packs, post-match analysis, structured reviews
+- **Executive reporting**: RAG traffic-light briefings, player assessments, competition outlooks (1-page max, plain language)
+- **Ad-hoc analysis toolkit**: 21 parameterised SQL queries across 8 categories, accessible via API or React workbench
+
+### Analytics Layer
 - **Core analyses**: Opponent profiling, player performance, xG/xA, passing networks, pressing heatmaps
-- **Custom xG model**: Trainable logistic regression + gradient boosting upgrade with hyperparameter tuning
-- **Player similarity engine**: Embedding-based player comparison for recruitment shortlisting
-- **Possession chain analysis**: Sequence modelling of build-up patterns, transitions, and dangerous possessions
-- **Set-piece analysis**: Corner/free-kick clustering, delivery zone classification, efficiency metrics
-- **Match simulation**: Monte Carlo outcome prediction with scoreline probabilities and in-match updates
-- **Player development tracking**: Longitudinal trajectory analysis, breakout identification, age curves
+- **Custom xG model**: Logistic regression + gradient boosting with hyperparameter tuning (AUC ~0.82)
+- **Player similarity engine**: Embedding-based comparison for recruitment shortlisting
+- **Possession chains**: Sequence modelling of build-up patterns, transitions, and dangerous possessions
+- **Set-piece analysis**: Corner/FK clustering, delivery zones, efficiency metrics
+- **Match simulation**: Monte Carlo outcome prediction (10K iterations) with scoreline distributions
 - **Spatial dominance**: Voronoi tessellation, passing lanes, defensive coverage gaps
-- **Video timestamp alignment**: Event-to-broadcast sync, FFmpeg clip generation, SRT subtitles
-- **Tracking data integration**: Pitch control, physical metrics, and event synchronisation
-- **FastAPI REST layer**: Full API for external integrations and the React frontend
-- **Automated PDF reports**: Match reports, opponent scouts, and player profiles via Jinja2 + WeasyPrint
-- **Parquet cache layer**: Instant notebook/dashboard loads bypassing database for read-heavy workflows
-- **Performance-optimised**: Indexed queries (70x speedup), COPY protocol (5-10x), async I/O (3-4x)
-- **Production engineering**: Type hints, unit tests, CI/CD, Docker, modular package structure
+
+### Infrastructure
+- **React dashboard**: 10 pages with D3 pitch visualisations, dark/light theme, Tailwind CSS
+- **FastAPI REST layer**: Full OpenAPI docs, CORS, cache endpoints, data validation endpoints
+- **Database migrations**: Alembic with environment-aware config (local Postgres or Railway `DATABASE_URL`)
+- **Data quality pipeline**: 7-check validation gate with audit trail
+- **Parquet cache**: 50ms data access vs 800ms from PostgreSQL
+- **Production deployment**: Railway-ready with Dockerfile, health checks, auto-migrations
+- **CI/CD**: Lint + typecheck + test matrix + frontend build + security audit
 
 ## Quick Start
 
@@ -106,80 +112,84 @@ docker compose up --build
 MatchMind/
 ├── frontend/                    # React + TypeScript dashboard (Vite)
 │   ├── src/
-│   │   ├── api/                 # HTTP client, types, endpoint functions
-│   │   ├── components/
-│   │   │   ├── charts/          # Recharts + D3 visualisations
-│   │   │   ├── layout/          # Sidebar, header, page wrapper
-│   │   │   ├── pitch/           # SVG football pitch (StatsBomb coords)
-│   │   │   └── shared/          # DataTable, cards, loading states
-│   │   ├── hooks/               # useTheme, custom hooks
-│   │   ├── pages/               # Route-level page components
-│   │   └── styles/              # Tailwind CSS + custom properties theme
-│   ├── vite.config.ts           # Build config (GitHub Pages base path)
-│   └── package.json             # Frontend dependencies
+│   │   ├── api/                 # Typed HTTP client + endpoint functions
+│   │   ├── components/          # Charts, layout, pitch, shared UI
+│   │   ├── pages/               # 10 route-level pages
+│   │   └── styles/              # Tailwind CSS + theme
+│   └── vite.config.ts
 ├── src/football_analytics/
-│   ├── __init__.py              # Package root
-│   ├── config.py                # Environment & settings
+│   ├── config.py                # Environment settings (DATABASE_URL aware)
+│   ├── api.py                   # FastAPI REST endpoints (~2400 lines)
 │   ├── ingest.py                # Sync ingestion (COPY protocol)
-│   ├── async_ingest.py          # Async concurrent ingestion (httpx)
+│   ├── async_ingest.py          # Async concurrent ingestion
+│   ├── ingest_orchestrator.py   # Multi-competition incremental sync
 │   ├── cache.py                 # Parquet cache layer
-│   ├── api.py                   # FastAPI REST endpoints
+│   ├── validation.py            # Data quality pipeline (7 checks)
 │   ├── db/
-│   │   ├── __init__.py          # Engine & session management
-│   │   ├── schema.sql           # DDL + indexes + materialised views
-│   │   ├── partitioning.sql     # Table partitioning by season_id
+│   │   ├── schema.sql           # Full DDL + indexes + materialised views
+│   │   ├── partitioning.sql     # Table partitioning by season
 │   │   └── queries.sql          # Optimised analytical queries
+│   ├── prediction/
+│   │   ├── match_predictor.py   # Dixon-Coles match outcome model
+│   │   ├── team_rating.py       # Bayesian team strength ratings
+│   │   ├── tactical_matchup.py  # Style-based matchup analysis
+│   │   ├── tournament.py        # Monte Carlo tournament simulation
+│   │   └── model_versioning.py  # Prediction accuracy tracking
+│   ├── matchday/
+│   │   ├── fixtures.py          # Fixture calendar & status lifecycle
+│   │   ├── pre_match.py         # Automated pre-match dossiers
+│   │   ├── post_match.py        # Post-match result processing
+│   │   └── reviews.py           # Structured match review workflow
 │   ├── analysis/
+│   │   ├── queries.py           # 21 parameterised analytical queries
 │   │   ├── opponent_profile.py  # Opponent scouting reports
-│   │   ├── player_performance.py # Player metrics & radar charts
-│   │   ├── visualisations.py    # Static + interactive plots
-│   │   ├── xg_model.py          # Custom xG model (logistic regression)
-│   │   ├── xg_model_advanced.py # Gradient boosting xG (HistGradient)
-│   │   ├── similarity.py        # Player similarity engine
-│   │   ├── tracking.py          # Tracking data integration
-│   │   ├── possession_chains.py # Possession sequence analysis
-│   │   ├── set_pieces.py        # Set-piece analysis & clustering
+│   │   ├── player_performance.py
+│   │   ├── possession_chains.py
+│   │   ├── set_pieces.py
 │   │   ├── simulation.py        # Monte Carlo match simulation
-│   │   ├── development.py       # Player development tracking
-│   │   ├── spatial.py           # Voronoi tessellation & space control
-│   │   └── video_alignment.py   # Video timestamp sync & clip generation
+│   │   ├── spatial.py           # Voronoi + space control
+│   │   └── ...                  # xG models, tracking, video, similarity
 │   └── reports/
+│       ├── executive.py         # Executive intelligence (RAG reports)
 │       ├── pdf_report.py        # Automated PDF generation
-│       └── templates/           # Jinja2 HTML report templates
-├── tests/                       # Unit tests (pytest)
-├── notebooks/                   # Reproducible Jupyter analyses
-├── docs/                        # Technical docs
-├── data/                        # Raw + processed + cache (gitignored)
+│       └── templates/
+├── alembic/                     # Database migrations
+│   ├── env.py                   # Environment-aware (reads .env)
+│   └── versions/                # Migration scripts
+├── tests/                       # 180+ unit tests (pytest)
+├── scripts/
+│   └── run-ci-local.ps1         # Local CI runner
 ├── .github/workflows/
-│   ├── ci.yml                   # Backend CI (lint, type-check, test)
-│   └── deploy-frontend.yml      # GitHub Pages frontend deployment
-├── Dockerfile                   # Container build
-├── docker-compose.yml           # Full stack orchestration
-├── pyproject.toml               # Python dependencies (uv/hatch)
-├── package.json                 # Root convenience scripts → frontend/
-└── README.md                    # This file
+│   ├── ci.yml                   # Lint + typecheck + test + frontend + security
+│   └── deploy-frontend.yml      # GitHub Pages deployment
+├── Dockerfile                   # Production container (Railway-ready)
+├── railway.toml                 # Railway deployment config
+├── docker-compose.yml           # Local full-stack dev
+└── pyproject.toml               # Python dependencies (uv/hatch)
 ```
 
 ## Analyses & Modules
 
 | Module | Capability | Use Case |
 |--------|-----------|----------|
+| `prediction/match_predictor.py` | Dixon-Coles match outcome model | Pre-match win/draw/loss probabilities |
+| `prediction/team_rating.py` | Bayesian team strength ratings | Power rankings, form tracking |
+| `prediction/tournament.py` | Monte Carlo tournament simulation | Tournament progression probabilities |
+| `matchday/pre_match.py` | Automated pre-match dossiers | Analyst workflow automation |
+| `matchday/post_match.py` | Post-match result processing | Automated debrief data |
+| `reports/executive.py` | RAG executive briefings | Board/DoF weekly updates |
+| `analysis/queries.py` | 21 parameterised analytical queries | Ad-hoc tactical questions |
 | `opponent_profile.py` | Attack patterns, defensive shape, key threats | Pre-match preparation |
 | `player_performance.py` | Season stats, rolling form, radar percentiles | Player reviews, recruitment |
-| `xg_model.py` | Custom trainable xG model with evaluation | Model understanding, custom features |
-| `xg_model_advanced.py` | Gradient boosting xG with hyperparameter tuning | Higher accuracy xG predictions |
-| `similarity.py` | Cosine similarity on normalised player vectors | Recruitment shortlisting, replacement finding |
+| `xg_model_advanced.py` | Gradient boosting xG with tuning | Higher accuracy xG predictions |
+| `similarity.py` | Cosine similarity on normalised player vectors | Recruitment shortlisting |
 | `possession_chains.py` | Build-up sequence analysis, transition metrics | Tactical pattern identification |
 | `set_pieces.py` | Corner/FK clustering, delivery zones, efficiency | Set-piece coaching & defence |
 | `simulation.py` | Monte Carlo match/season outcome simulation | Pre-match strategy, projections |
-| `development.py` | Multi-season trajectory analysis, breakout detection | Academy scouting, squad planning |
-| `spatial.py` | Voronoi tessellation, passing lanes, coverage gaps | Space control, defensive analysis |
-| `video_alignment.py` | Event-to-video sync, clip generation, SRT export | Coach video review workflow |
-| `tracking.py` | Pitch control, physical metrics, space analysis | Advanced tactical analysis (with tracking data) |
-| `visualisations.py` | Shot maps, passing networks, heatmaps, xG timeline | Reports, presentations, dashboards |
-| `cache.py` | Parquet-based query result caching | Fast notebook/dashboard iteration |
-| `pdf_report.py` | Automated PDF/HTML reports | Coach presentations, weekly reports |
-| `api.py` | FastAPI REST endpoints with Pydantic validation | External integrations, mobile apps |
+| `spatial.py` | Voronoi tessellation, passing lanes, coverage gaps | Space control analysis |
+| `validation.py` | 7-check data quality pipeline | Data integrity before analytics |
+| `cache.py` | Parquet-based query result caching | Fast notebook/dashboard loads |
+| `api.py` | FastAPI REST endpoints + cache/validation system | Frontend, integrations, mobile |
 
 ## Dashboard
 
@@ -192,12 +202,15 @@ A custom React + TypeScript analytics dashboard built for performance analysts, 
 ### Pages
 
 1. **Dashboard** — Overview with data availability status and navigation to all modules
-2. **Opponent Profile** — Scouting report with attack patterns, defensive shape, key player threats
-3. **Player Performance** — Individual season summary, rolling form chart, radar percentiles, squad comparison
-4. **Team Scorecard** — KPI cards, possession style breakdown, defensive zone analysis, set-piece efficiency
-5. **Match Analysis** — Shot map (D3 pitch), xG timeline, passing network, pressure heatmap (canvas + KDE)
-6. **Player Comparison** — Side-by-side similarity search for recruitment shortlisting
-7. **Simulation** — Monte Carlo match outcome prediction with scoreline distribution chart
+2. **Predictions** — Match outcome predictor, team ratings table, tournament simulation
+3. **Matchday Calendar** — Fixture timeline with status lifecycle, pre-match pack generation
+4. **Analysis Workbench** — Category-filtered query selector, parameter forms, results with CSV export
+5. **Opponent Profile** — Scouting report with attack patterns, defensive shape, key player threats
+6. **Player Performance** — Individual season summary, rolling form chart, radar percentiles, squad comparison
+7. **Team Scorecard** — KPI cards, possession style breakdown, defensive zone analysis, set-piece efficiency
+8. **Match Analysis** — Shot map (D3 pitch), xG timeline, passing network, pressure heatmap (canvas + KDE)
+9. **Player Comparison** — Side-by-side similarity search for recruitment shortlisting
+10. **Simulation** — Monte Carlo match outcome prediction with scoreline distribution chart
 
 ### Features
 
