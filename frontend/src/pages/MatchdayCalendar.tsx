@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, KPICard, Badge, Button, ErrorState } from "@/components/shared";
+import { Card, KPICard, Button, ErrorState } from "@/components/shared";
 import { api } from "@/api";
-import type { CalendarResponse, Fixture } from "@/api/types";
+import type { CalendarResponse } from "@/api/types";
 
 const STATUS_COLORS: Record<string, string> = {
     scheduled: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -67,17 +67,17 @@ export default function MatchdayCalendar() {
             {calendar && (
                 <>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                        <KPICard title="Upcoming (14 days)" value={calendar.upcoming_count} />
+                        <KPICard label="Upcoming (14 days)" value={calendar.upcoming_count} />
                         <KPICard
-                            title="Need Preview"
+                            label="Need Preview"
                             value={calendar.needing_preview}
                         />
                         <KPICard
-                            title="Need Review"
+                            label="Need Review"
                             value={calendar.needing_review}
                         />
                         <KPICard
-                            title="Reviewed"
+                            label="Reviewed"
                             value={calendar.status_counts.reviewed}
                         />
                     </div>

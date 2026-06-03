@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, KPICard, Button, DataTable, ErrorState } from "@/components/shared";
+import { Card, KPICard, Button, ErrorState } from "@/components/shared";
 import { api } from "@/api";
 import type { MatchPrediction, TeamRating } from "@/api/types";
 
@@ -132,19 +132,19 @@ export default function Predictions() {
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                 <KPICard
-                                    title="Home Win"
+                                    label="Home Win"
                                     value={`${(prediction.team_a_win_prob * 100).toFixed(1)}%`}
                                 />
                                 <KPICard
-                                    title="Draw"
+                                    label="Draw"
                                     value={`${(prediction.draw_prob * 100).toFixed(1)}%`}
                                 />
                                 <KPICard
-                                    title="Away Win"
+                                    label="Away Win"
                                     value={`${(prediction.team_b_win_prob * 100).toFixed(1)}%`}
                                 />
                                 <KPICard
-                                    title="Most Likely Score"
+                                    label="Most Likely Score"
                                     value={`${prediction.most_likely_score[0]}-${prediction.most_likely_score[1]}`}
                                 />
                             </div>
