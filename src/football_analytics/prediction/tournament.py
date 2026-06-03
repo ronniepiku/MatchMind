@@ -17,9 +17,7 @@ from enum import Enum
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
-from football_analytics.analysis.simulation import simulate_match
 from football_analytics.prediction.team_rating import TeamRating
 
 logger = logging.getLogger(__name__)
@@ -100,9 +98,7 @@ class TournamentFormat:
         return cls(
             format_type=CompetitionFormat.LEAGUE,
             name="Premier League",
-            groups=[
-                GroupConfig(group_name="League", team_ids=team_ids, teams_advancing=0)
-            ],
+            groups=[GroupConfig(group_name="League", team_ids=team_ids, teams_advancing=0)],
             matches_per_pair=2,
         )
 
@@ -127,9 +123,7 @@ class TournamentFormat:
         return cls(
             format_type=CompetitionFormat.KNOCKOUT,
             name=name,
-            groups=[
-                GroupConfig(group_name="Draw", team_ids=team_ids, teams_advancing=0)
-            ],
+            groups=[GroupConfig(group_name="Draw", team_ids=team_ids, teams_advancing=0)],
             knockout_rounds=n_rounds,
             extra_time=True,
             penalties=True,
@@ -194,7 +188,7 @@ class TournamentSimulator:
         self,
         ratings: dict[int, TeamRating],
         default_xg: float = 1.2,
-    ):
+    ) -> None:
         """Initialise tournament simulator.
 
         Args:
@@ -227,9 +221,7 @@ class TournamentSimulator:
         elif tournament_format.format_type == CompetitionFormat.GROUPS_KNOCKOUT:
             return self._simulate_groups_knockout(tournament_format, n_simulations, rng)
         elif tournament_format.format_type == CompetitionFormat.KNOCKOUT:
-            return self._simulate_knockout_tournament(
-                tournament_format, n_simulations, rng
-            )
+            return self._simulate_knockout_tournament(tournament_format, n_simulations, rng)
         else:
             raise ValueError(f"Unsupported format: {tournament_format.format_type}")
 
@@ -256,9 +248,7 @@ class TournamentSimulator:
                     for leg in range(fmt.matches_per_pair):
                         home = team_a if leg == 0 else team_b
                         away = team_b if leg == 0 else team_a
-                        home_goals, away_goals = self._simulate_single_match(
-                            home, away, rng, neutral=False
-                        )
+                        home_goals, away_goals = self._simulate_single_match(home, away, rng, neutral=False)
                         if home_goals > away_goals:
                             points[home] += fmt.points_win
                         elif home_goals == away_goals:
@@ -311,19 +301,15 @@ class TournamentSimulator:
         group_second = {tid: 0 for tid in all_team_ids}
         group_third = {tid: 0 for tid in all_team_ids}
         advanced = {tid: 0 for tid in all_team_ids}
-        reached_round = {
-            r: {tid: 0 for tid in all_team_ids} for r in range(fmt.knockout_rounds + 1)
-        }
+        reached_round = {r: {tid: 0 for tid in all_team_ids} for r in range(fmt.knockout_rounds + 1)}
         winner_count = {tid: 0 for tid in all_team_ids}
 
-        knockout_round_names = self._get_knockout_round_names(fmt.knockout_rounds)
+        self._get_knockout_round_names(fmt.knockout_rounds)
 
-        for sim in range(n_simulations):
+        for _sim in range(n_simulations):
             # --- GROUP STAGE ---
             group_qualifiers = []
-            third_place_teams: list[tuple[int, int, int]] = (
-                []
-            )  # (team_id, points, goal_diff)
+            third_place_teams: list[tuple[int, int, int]] = []  # (team_id, points, goal_diff)
 
             for group in fmt.groups:
                 standings = self._simulate_group(group, rng)
@@ -410,17 +396,11 @@ class TournamentSimulator:
 
             # Assign knockout round probabilities dynamically
             if fmt.knockout_rounds >= 1:
-                result.round_of_32_prob = round(
-                    reached_round[0][tid] / n_simulations, 4
-                )
+                result.round_of_32_prob = round(reached_round[0][tid] / n_simulations, 4)
             if fmt.knockout_rounds >= 2:
-                result.round_of_16_prob = round(
-                    reached_round[1][tid] / n_simulations, 4
-                )
+                result.round_of_16_prob = round(reached_round[1][tid] / n_simulations, 4)
             if fmt.knockout_rounds >= 3:
-                result.quarter_final_prob = round(
-                    reached_round[2][tid] / n_simulations, 4
-                )
+                result.quarter_final_prob = round(reached_round[2][tid] / n_simulations, 4)
             if fmt.knockout_rounds >= 4:
                 result.semi_final_prob = round(reached_round[3][tid] / n_simulations, 4)
             if fmt.knockout_rounds >= 5:
@@ -444,11 +424,9 @@ class TournamentSimulator:
         """Simulate a straight knockout tournament (FA Cup style)."""
         team_ids = fmt.groups[0].team_ids
         winner_count = {tid: 0 for tid in team_ids}
-        round_reached = {
-            r: {tid: 0 for tid in team_ids} for r in range(fmt.knockout_rounds)
-        }
+        round_reached = {r: {tid: 0 for tid in team_ids} for r in range(fmt.knockout_rounds)}
 
-        for sim in range(n_simulations):
+        for _sim in range(n_simulations):
             bracket = list(team_ids)
             rng.shuffle(bracket)
 
@@ -458,9 +436,7 @@ class TournamentSimulator:
 
                 next_bracket = []
                 for i in range(0, len(bracket) - 1, 2):
-                    winner = self._simulate_knockout_match(
-                        bracket[i], bracket[i + 1], rng
-                    )
+                    winner = self._simulate_knockout_match(bracket[i], bracket[i + 1], rng)
                     next_bracket.append(winner)
                 if len(bracket) % 2 == 1:
                     next_bracket.append(bracket[-1])
@@ -477,8 +453,7 @@ class TournamentSimulator:
                 winner_prob=round(winner_count[tid] / n_simulations, 4),
                 quarter_final_prob=(
                     round(
-                        round_reached.get(fmt.knockout_rounds - 3, {}).get(tid, 0)
-                        / n_simulations,
+                        round_reached.get(fmt.knockout_rounds - 3, {}).get(tid, 0) / n_simulations,
                         4,
                     )
                     if fmt.knockout_rounds >= 3
@@ -486,16 +461,14 @@ class TournamentSimulator:
                 ),
                 semi_final_prob=(
                     round(
-                        round_reached.get(fmt.knockout_rounds - 2, {}).get(tid, 0)
-                        / n_simulations,
+                        round_reached.get(fmt.knockout_rounds - 2, {}).get(tid, 0) / n_simulations,
                         4,
                     )
                     if fmt.knockout_rounds >= 2
                     else 0.0
                 ),
                 final_prob=round(
-                    round_reached.get(fmt.knockout_rounds - 1, {}).get(tid, 0)
-                    / n_simulations,
+                    round_reached.get(fmt.knockout_rounds - 1, {}).get(tid, 0) / n_simulations,
                     4,
                 ),
             )
@@ -507,9 +480,7 @@ class TournamentSimulator:
             team_results=team_results,
         )
 
-    def _simulate_group(
-        self, group: GroupConfig, rng: np.random.Generator
-    ) -> list[tuple[int, int, int]]:
+    def _simulate_group(self, group: GroupConfig, rng: np.random.Generator) -> list[tuple[int, int, int]]:
         """Simulate a single group (round-robin within group).
 
         Returns: Sorted list of (team_id, points, goal_difference).
@@ -522,9 +493,7 @@ class TournamentSimulator:
             for j, team_b in enumerate(group.team_ids):
                 if i >= j:
                     continue
-                goals_a, goals_b = self._simulate_single_match(
-                    team_a, team_b, rng, neutral=True
-                )
+                goals_a, goals_b = self._simulate_single_match(team_a, team_b, rng, neutral=True)
                 goal_diff[team_a] += goals_a - goals_b
                 goal_diff[team_b] += goals_b - goals_a
 
@@ -541,13 +510,9 @@ class TournamentSimulator:
         standings.sort(key=lambda x: (-x[1], -x[2]))
         return standings
 
-    def _simulate_knockout_match(
-        self, team_a: int, team_b: int, rng: np.random.Generator
-    ) -> int:
+    def _simulate_knockout_match(self, team_a: int, team_b: int, rng: np.random.Generator) -> int:
         """Simulate a knockout match (must produce a winner)."""
-        goals_a, goals_b = self._simulate_single_match(
-            team_a, team_b, rng, neutral=True
-        )
+        goals_a, goals_b = self._simulate_single_match(team_a, team_b, rng, neutral=True)
         if goals_a > goals_b:
             return team_a
         elif goals_b > goals_a:
@@ -589,9 +554,7 @@ class TournamentSimulator:
         goals_b = int(rng.poisson(lambda_b))
         return goals_a, goals_b
 
-    def _get_match_xg(
-        self, team_a: int, team_b: int, neutral: bool = True
-    ) -> tuple[float, float]:
+    def _get_match_xg(self, team_a: int, team_b: int, neutral: bool = True) -> tuple[float, float]:
         """Derive expected xG for a matchup based on ratings."""
         rating_a = self._ratings.get(team_a)
         rating_b = self._ratings.get(team_b)
@@ -599,12 +562,8 @@ class TournamentSimulator:
         avg_defense = 1.2  # League average
 
         if rating_a and rating_b:
-            xg_a = rating_a.offensive_strength * (
-                avg_defense / max(rating_b.defensive_strength, 0.3)
-            )
-            xg_b = rating_b.offensive_strength * (
-                avg_defense / max(rating_a.defensive_strength, 0.3)
-            )
+            xg_a = rating_a.offensive_strength * (avg_defense / max(rating_b.defensive_strength, 0.3))
+            xg_b = rating_b.offensive_strength * (avg_defense / max(rating_a.defensive_strength, 0.3))
         elif rating_a:
             xg_a = rating_a.offensive_strength
             xg_b = self._default_xg
@@ -646,4 +605,4 @@ class TournamentSimulator:
             4: ["Round of 16", "Quarter-Final", "Semi-Final", "Final"],
             5: ["Round of 32", "Round of 16", "Quarter-Final", "Semi-Final", "Final"],
         }
-        return names.get(n_rounds, [f"Round {i+1}" for i in range(n_rounds)])
+        return names.get(n_rounds, [f"Round {i + 1}" for i in range(n_rounds)])

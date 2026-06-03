@@ -88,9 +88,7 @@ def extract_set_pieces(events_df: pd.DataFrame) -> list[SetPieceSequence]:
     df = events_df.sort_values(["match_id", "minute", "second"]).reset_index(drop=True)
 
     # Identify set-piece origins
-    sp_mask = df["play_pattern"].isin(
-        ["From Corner", "From Free Kick", "From Throw In", "From Goal Kick"]
-    )
+    sp_mask = df["play_pattern"].isin(["From Corner", "From Free Kick", "From Throw In", "From Goal Kick"])
 
     sequences = []
     processed_possessions = set()
@@ -107,9 +105,7 @@ def extract_set_pieces(events_df: pd.DataFrame) -> list[SetPieceSequence]:
         processed_possessions.add(key)
 
         # Get all events in this possession
-        poss_events = df[
-            (df["match_id"] == match_id) & (df["possession"] == possession)
-        ]
+        poss_events = df[(df["match_id"] == match_id) & (df["possession"] == possession)]
         if poss_events.empty:
             continue
 
@@ -243,23 +239,25 @@ def set_pieces_to_dataframe(sequences: list[SetPieceSequence]) -> pd.DataFrame:
     """Convert set-piece sequences to a summary DataFrame."""
     records = []
     for sp in sequences:
-        records.append({
-            "match_id": sp.match_id,
-            "team_id": sp.team_id,
-            "set_piece_type": sp.set_piece_type.value,
-            "delivery_zone": sp.delivery_zone.value,
-            "taker_id": sp.taker_id,
-            "taker_name": sp.taker_name,
-            "start_x": sp.start_x,
-            "start_y": sp.start_y,
-            "delivery_x": sp.delivery_x,
-            "delivery_y": sp.delivery_y,
-            "outcome": sp.outcome,
-            "xg_generated": sp.xg_generated,
-            "num_actions": sp.num_actions,
-            "is_inswinger": sp.is_inswinger,
-            "is_outswinger": sp.is_outswinger,
-        })
+        records.append(
+            {
+                "match_id": sp.match_id,
+                "team_id": sp.team_id,
+                "set_piece_type": sp.set_piece_type.value,
+                "delivery_zone": sp.delivery_zone.value,
+                "taker_id": sp.taker_id,
+                "taker_name": sp.taker_name,
+                "start_x": sp.start_x,
+                "start_y": sp.start_y,
+                "delivery_x": sp.delivery_x,
+                "delivery_y": sp.delivery_y,
+                "outcome": sp.outcome,
+                "xg_generated": sp.xg_generated,
+                "num_actions": sp.num_actions,
+                "is_inswinger": sp.is_inswinger,
+                "is_outswinger": sp.is_outswinger,
+            }
+        )
     return pd.DataFrame(records)
 
 
@@ -320,9 +318,7 @@ def cluster_delivery_patterns(
     Returns:
         DataFrame with cluster assignments and centroids.
     """
-    filtered = sp_df[
-        (sp_df["team_id"] == team_id) & (sp_df["set_piece_type"] == sp_type)
-    ].copy()
+    filtered = sp_df[(sp_df["team_id"] == team_id) & (sp_df["set_piece_type"] == sp_type)].copy()
 
     if len(filtered) < n_clusters:
         filtered["cluster"] = 0
@@ -369,9 +365,7 @@ def compute_defensive_set_piece_vulnerabilities(
         return {"team_id": team_id, "set_pieces_conceded": 0}
 
     goals_conceded = (conceded["outcome"] == "goal").sum()
-    shots_conceded = conceded["outcome"].isin(
-        ["goal", "shot_on_target", "shot_off_target"]
-    ).sum()
+    shots_conceded = conceded["outcome"].isin(["goal", "shot_on_target", "shot_off_target"]).sum()
 
     # Most dangerous delivery zones conceded
     zone_xg = conceded.groupby("delivery_zone")["xg_generated"].agg(["sum", "count", "mean"])

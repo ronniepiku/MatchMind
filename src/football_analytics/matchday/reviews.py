@@ -211,9 +211,7 @@ def generate_player_review(
     if len(match_ratings) >= 4:
         mid = len(match_ratings) // 2
         first_half_avg = sum(r["rating"] for r in match_ratings[:mid]) / mid
-        second_half_avg = sum(r["rating"] for r in match_ratings[mid:]) / (
-            len(match_ratings) - mid
-        )
+        second_half_avg = sum(r["rating"] for r in match_ratings[mid:]) / (len(match_ratings) - mid)
         if second_half_avg - first_half_avg > 0.3:
             trend = "improving"
         elif first_half_avg - second_half_avg > 0.3:
@@ -240,9 +238,7 @@ def generate_player_review(
         xg_overperformance=round(goals - xg, 2),
         passes_per_match=round(stats.get("passes", 0) / matches, 1),
         pass_accuracy=round(stats.get("pass_accuracy", 0.0), 1),
-        progressive_carries_per_match=round(
-            stats.get("progressive_carries", 0) / matches, 1
-        ),
+        progressive_carries_per_match=round(stats.get("progressive_carries", 0) / matches, 1),
         dribble_success_rate=round(stats.get("dribble_success", 0.0), 1),
         key_passes_per_match=round(stats.get("key_passes", 0) / matches, 1),
         pressures_per_match=round(stats.get("pressures", 0) / matches, 1),
@@ -314,12 +310,10 @@ def generate_competition_review(
     if matches >= 6:
         recent = results[-(matches // 3) :]
         early = results[: (matches // 3)]
-        recent_ppg = sum(
-            3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in recent
-        ) / max(len(recent), 1)
-        early_ppg = sum(
-            3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in early
-        ) / max(len(early), 1)
+        recent_ppg = sum(3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in recent) / max(
+            len(recent), 1
+        )
+        early_ppg = sum(3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in early) / max(len(early), 1)
         if recent_ppg - early_ppg > 0.3:
             trajectory = "improving"
         elif early_ppg - recent_ppg > 0.3:
@@ -538,9 +532,7 @@ def _get_match_ratings(
     return sorted(ratings, key=lambda x: x["rating"], reverse=True)
 
 
-def _assess_player_qualities(
-    stats: dict[str, Any], matches: int
-) -> tuple[list[str], list[str]]:
+def _assess_player_qualities(stats: dict[str, Any], matches: int) -> tuple[list[str], list[str]]:
     """Identify player strengths and development areas."""
     strengths = []
     dev_areas = []
@@ -586,9 +578,7 @@ def _assess_player_qualities(
     return strengths, dev_areas
 
 
-def _get_competition_results(
-    engine: Engine, competition_id: int, season_id: int, team_id: int
-) -> list[dict[str, Any]]:
+def _get_competition_results(engine: Engine, competition_id: int, season_id: int, team_id: int) -> list[dict[str, Any]]:
     """Get all match results in a competition season."""
     query = text("""
         SELECT m.match_id, m.match_date, m.home_team_id, m.away_team_id,
@@ -634,9 +624,7 @@ def _get_competition_results(
     return results
 
 
-def _get_prediction_accuracy(
-    engine: Engine, competition_id: int, season_id: int, team_id: int
-) -> dict[str, Any]:
+def _get_prediction_accuracy(engine: Engine, competition_id: int, season_id: int, team_id: int) -> dict[str, Any]:
     """Get prediction accuracy stats for a competition."""
     query = text("""
         SELECT COUNT(*) AS total,
@@ -652,11 +640,7 @@ def _get_prediction_accuracy(
     try:
         with engine.connect() as conn:
             result = (
-                conn.execute(
-                    query, {"cid": competition_id, "sid": season_id, "tid": team_id}
-                )
-                .mappings()
-                .fetchone()
+                conn.execute(query, {"cid": competition_id, "sid": season_id, "tid": team_id}).mappings().fetchone()
             )
         return dict(result) if result else {"total": 0, "correct": 0, "avg_brier": 0.0}
     except Exception:
@@ -671,9 +655,7 @@ def _get_competition_name(engine: Engine, competition_id: int, season_id: int) -
     """)
     try:
         with engine.connect() as conn:
-            result = conn.execute(
-                query, {"cid": competition_id, "sid": season_id}
-            ).fetchone()
+            result = conn.execute(query, {"cid": competition_id, "sid": season_id}).fetchone()
         return result[0] if result else f"Competition {competition_id}"
     except Exception:
         return f"Competition {competition_id}"
@@ -757,9 +739,7 @@ def _get_tactical_profile(engine: Engine, team_id: int) -> dict[str, Any]:
     return {"formation": "Unknown", "style_tags": [], "dimensions": {}}
 
 
-def _get_opponent_key_players_dossier(
-    engine: Engine, team_id: int
-) -> list[dict[str, Any]]:
+def _get_opponent_key_players_dossier(engine: Engine, team_id: int) -> list[dict[str, Any]]:
     """Get opponent's most impactful players across all data."""
     query = text("""
         SELECT p.player_id, p.player_name,

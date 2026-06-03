@@ -142,11 +142,7 @@ def generate_post_match_review(
     # Get match context
     match_info = _get_match_info(engine, match_id)
     our_id = our_team_id or match_info["home_team_id"]
-    opponent_id = (
-        match_info["away_team_id"]
-        if our_id == match_info["home_team_id"]
-        else match_info["home_team_id"]
-    )
+    opponent_id = match_info["away_team_id"] if our_id == match_info["home_team_id"] else match_info["home_team_id"]
     is_home = our_id == match_info["home_team_id"]
 
     # Team-level stats
@@ -165,9 +161,7 @@ def generate_post_match_review(
         prediction_audit = _audit_prediction(engine, fixture_id, match_info, is_home)
 
     # Tactical observations
-    tactical_obs = _generate_tactical_observations(
-        team_stats, opp_stats, match_info, is_home
-    )
+    tactical_obs = _generate_tactical_observations(team_stats, opp_stats, match_info, is_home)
 
     # Improvement areas
     improvements = _identify_improvements(team_stats, opp_stats, player_ratings)
@@ -250,9 +244,7 @@ def _get_team_stats(engine: Engine, match_id: int, team_id: int) -> dict[str, An
     """)
 
     with engine.connect() as conn:
-        result = (
-            conn.execute(query, {"mid": match_id, "tid": team_id}).mappings().fetchone()
-        )
+        result = conn.execute(query, {"mid": match_id, "tid": team_id}).mappings().fetchone()
 
     if not result:
         return {}
@@ -264,9 +256,7 @@ def _get_team_stats(engine: Engine, match_id: int, team_id: int) -> dict[str, An
     return row
 
 
-def _get_player_ratings(
-    engine: Engine, match_id: int, team_id: int
-) -> list[PlayerMatchRating]:
+def _get_player_ratings(engine: Engine, match_id: int, team_id: int) -> list[PlayerMatchRating]:
     """Compute per-player match ratings."""
     query = text("""
         SELECT e.player_id, p.player_name,
@@ -353,9 +343,7 @@ def _compute_unit_performances(
     # Simple heuristic classification
     defenders = [p for p in player_ratings if p.tackles_won >= 2 and p.xg < 0.1]
     attackers = [p for p in player_ratings if p.xg >= 0.1 or p.xa >= 0.1]
-    midfielders = [
-        p for p in player_ratings if p not in defenders and p not in attackers
-    ]
+    midfielders = [p for p in player_ratings if p not in defenders and p not in attackers]
 
     units = []
     for unit_name, players in [
@@ -372,13 +360,9 @@ def _compute_unit_performances(
                 rating=avg_rating,
                 baseline_rating=6.5,  # Would compare to season average
                 key_metrics={
-                    "avg_pass_accuracy": round(
-                        sum(p.pass_accuracy for p in players) / len(players), 1
-                    ),
+                    "avg_pass_accuracy": round(sum(p.pass_accuracy for p in players) / len(players), 1),
                     "total_pressures": sum(p.pressures for p in players),
-                    "total_progressive_carries": sum(
-                        p.progressive_carries for p in players
-                    ),
+                    "total_progressive_carries": sum(p.progressive_carries for p in players),
                 },
             )
         )
@@ -441,7 +425,7 @@ def _audit_prediction(
         1.0 if actual_winner == "away" else 0.0,
     ]
     pred_probs = [p_home, p_draw, p_away]
-    brier = sum((p - a) ** 2 for p, a in zip(pred_probs, actual_probs)) / 3
+    brier = sum((p - a) ** 2 for p, a in zip(pred_probs, actual_probs, strict=False)) / 3
 
     correct = predicted_winner == actual_winner
     predicted_score = f"{pred['predicted_score_home']}-{pred['predicted_score_away']}"
@@ -486,55 +470,37 @@ def _generate_tactical_observations(
     # Pressing intensity
     pressures = team_stats.get("pressures", 0)
     if pressures > 200:
-        observations.append(
-            "High press was effective — sustained pressure throughout the match."
-        )
+        observations.append("High press was effective — sustained pressure throughout the match.")
     elif pressures < 100:
-        observations.append(
-            "Low pressing approach — may indicate tactical choice or fatigue."
-        )
+        observations.append("Low pressing approach — may indicate tactical choice or fatigue.")
 
     # Passing profile
     pass_acc = team_stats.get("pass_accuracy", 0.0)
     if pass_acc > 88:
-        observations.append(
-            "Excellent passing accuracy indicates controlled possession play."
-        )
+        observations.append("Excellent passing accuracy indicates controlled possession play.")
     elif pass_acc < 75:
-        observations.append(
-            "Below-average passing accuracy — opponent pressed effectively or risk-taking high."
-        )
+        observations.append("Below-average passing accuracy — opponent pressed effectively or risk-taking high.")
 
     # Shot efficiency
     shots = team_stats.get("shots", 0)
     xg = team_stats.get("xg", 0.0)
     if shots > 0 and xg / max(shots, 1) > 0.15:
-        observations.append(
-            "High shot quality — created chances from dangerous positions."
-        )
+        observations.append("High shot quality — created chances from dangerous positions.")
     elif shots > 0 and xg / max(shots, 1) < 0.06:
-        observations.append(
-            "Low shot quality — most chances from distance or low-value areas."
-        )
+        observations.append("Low shot quality — most chances from distance or low-value areas.")
 
     # Progressive play
     prog_carries = team_stats.get("progressive_carries", 0)
     if prog_carries > 50:
-        observations.append(
-            "Strong ball progression through carries — effective in transition."
-        )
+        observations.append("Strong ball progression through carries — effective in transition.")
 
     # Aerial dominance
     aerial_won = team_stats.get("aerial_won", 0)
     aerial_total = team_stats.get("aerial_total", 1) or 1
     if aerial_total > 20 and aerial_won / aerial_total > 0.6:
-        observations.append(
-            "Dominated aerial duels — physical advantage in both boxes."
-        )
+        observations.append("Dominated aerial duels — physical advantage in both boxes.")
     elif aerial_total > 20 and aerial_won / aerial_total < 0.4:
-        observations.append(
-            "Lost the aerial battle — vulnerable to set pieces and crosses."
-        )
+        observations.append("Lost the aerial battle — vulnerable to set pieces and crosses.")
 
     return observations
 
@@ -549,7 +515,7 @@ def _identify_improvements(
 
     # Conversion
     shots = team_stats.get("shots", 0)
-    xg = team_stats.get("xg", 0.0)
+    team_stats.get("xg", 0.0)
     sot = team_stats.get("shots_on_target", 0)
     if shots > 10 and sot / max(shots, 1) < 0.3:
         areas.append("Shot accuracy: too many attempts off target.")

@@ -108,9 +108,7 @@ def compute_voronoi_frame(
         )
 
     # Compute clipped areas for each player
-    pitch_polygon = np.array([
-        [0, 0], [pitch_length, 0], [pitch_length, pitch_width], [0, pitch_width]
-    ])
+    np.array([[0, 0], [pitch_length, 0], [pitch_length, pitch_width], [0, pitch_width]])
 
     home_regions = []
     away_regions = []
@@ -130,10 +128,7 @@ def compute_voronoi_frame(
         # Clip region to pitch boundaries
         clipped = _clip_polygon_to_pitch(region, pitch_length, pitch_width)
 
-        if len(clipped) >= 3:
-            area = _polygon_area(clipped)
-        else:
-            area = 0.0
+        area = _polygon_area(clipped) if len(clipped) >= 3 else 0.0
 
         if i < n_home:
             home_regions.append(clipped)
@@ -179,9 +174,7 @@ def compute_spatial_dominance(
         away_pos = frame_data["away_positions"]
         timestamp = frame_data.get("timestamp", float(i))
 
-        vf = compute_voronoi_frame(
-            home_pos, away_pos, pitch_length, pitch_width, timestamp
-        )
+        vf = compute_voronoi_frame(home_pos, away_pos, pitch_length, pitch_width, timestamp)
         frames.append(vf)
         home_controls.append(vf.home_control_area)
         away_controls.append(vf.away_control_area)
@@ -260,15 +253,18 @@ def compute_passing_lanes(
         # Lane quality: further from opponents = better
         quality = 1.0 if not blocked else max(0.0, closest_opponent_dist / lane_width)
 
-        lanes.append({
-            "teammate_idx": i,
-            "distance": round(float(distance), 1),
-            "angle": round(float(np.arctan2(direction[1], direction[0])), 3),
-            "is_open": not blocked,
-            "lane_quality": round(quality, 3),
-            "closest_opponent_in_lane": round(float(closest_opponent_dist), 1)
-            if closest_opponent_dist != float("inf") else None,
-        })
+        lanes.append(
+            {
+                "teammate_idx": i,
+                "distance": round(float(distance), 1),
+                "angle": round(float(np.arctan2(direction[1], direction[0])), 3),
+                "is_open": not blocked,
+                "lane_quality": round(quality, 3),
+                "closest_opponent_in_lane": round(float(closest_opponent_dist), 1)
+                if closest_opponent_dist != float("inf")
+                else None,
+            }
+        )
 
     return pd.DataFrame(lanes)
 
@@ -354,7 +350,8 @@ def identify_space_creation_events(
         space_events = space_events.sort_values(["match_id", "minute", "second"])
         logger.info(
             "Found %d space-creating events for team %d",
-            len(space_events), team_id,
+            len(space_events),
+            team_id,
         )
 
     return space_events

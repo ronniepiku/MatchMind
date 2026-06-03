@@ -10,7 +10,7 @@ Designed for daily use by an analyst team supporting multiple squads.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -107,7 +107,7 @@ class FixtureManager:
         manager.update_status(fixture_id=1, status=FixtureStatus.PREVIEW_GENERATED)
     """
 
-    def __init__(self, engine: Engine | None = None):
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine or get_engine()
 
     def get_fixtures(
@@ -146,9 +146,7 @@ class FixtureManager:
             conditions.append("f.match_date <= :to_date")
             params["to_date"] = to_date
         if team_id is not None:
-            conditions.append(
-                "(f.home_team_id = :team_id OR f.away_team_id = :team_id)"
-            )
+            conditions.append("(f.home_team_id = :team_id OR f.away_team_id = :team_id)")
             params["team_id"] = team_id
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
@@ -272,9 +270,7 @@ class FixtureManager:
         """Link a fixture to its actual match result after the game is played."""
         self.update_status(fixture_id, FixtureStatus.COMPLETED, match_id=match_id)
 
-    def get_calendar_summary(
-        self, days_ahead: int = 14, days_behind: int = 7
-    ) -> dict[str, Any]:
+    def get_calendar_summary(self, days_ahead: int = 14, days_behind: int = 7) -> dict[str, Any]:
         """Get a summary view of the matchday calendar.
 
         Returns a dict suitable for dashboard display with:
@@ -300,18 +296,10 @@ class FixtureManager:
             "needing_preview": len(needing_preview),
             "needing_review": len(needing_review),
             "status_counts": {
-                "scheduled": sum(
-                    1 for f in upcoming if f.status == FixtureStatus.SCHEDULED
-                ),
-                "preview_generated": sum(
-                    1 for f in upcoming if f.status == FixtureStatus.PREVIEW_GENERATED
-                ),
-                "completed": len(
-                    [f for f in recent if f.status == FixtureStatus.COMPLETED]
-                ),
-                "reviewed": len(
-                    [f for f in recent if f.status == FixtureStatus.REVIEWED]
-                ),
+                "scheduled": sum(1 for f in upcoming if f.status == FixtureStatus.SCHEDULED),
+                "preview_generated": sum(1 for f in upcoming if f.status == FixtureStatus.PREVIEW_GENERATED),
+                "completed": len([f for f in recent if f.status == FixtureStatus.COMPLETED]),
+                "reviewed": len([f for f in recent if f.status == FixtureStatus.REVIEWED]),
             },
         }
 
@@ -346,9 +334,7 @@ class FixtureManager:
         return {
             "fixture_id": fixture.fixture_id,
             "competition_name": fixture.competition_name,
-            "match_date": (
-                fixture.match_date.isoformat() if fixture.match_date else None
-            ),
+            "match_date": (fixture.match_date.isoformat() if fixture.match_date else None),
             "kick_off": fixture.kick_off,
             "home_team": {"id": fixture.home_team_id, "name": fixture.home_team_name},
             "away_team": {"id": fixture.away_team_id, "name": fixture.away_team_name},

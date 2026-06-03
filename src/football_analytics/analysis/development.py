@@ -36,16 +36,27 @@ _PEAK_AGE_RANGES = {
 _POSITION_METRICS = {
     "goalkeeper": ["saves_per_match", "clean_sheet_rate", "pass_accuracy"],
     "defender": [
-        "tackles_per_90", "interceptions_per_90", "aerial_wins_per_90",
-        "progressive_carries_per_90", "pass_accuracy",
+        "tackles_per_90",
+        "interceptions_per_90",
+        "aerial_wins_per_90",
+        "progressive_carries_per_90",
+        "pass_accuracy",
     ],
     "midfielder": [
-        "passes_completed_per_90", "key_passes_per_90", "progressive_passes_per_90",
-        "xg_per_90", "xa_per_90", "pressures_per_90",
+        "passes_completed_per_90",
+        "key_passes_per_90",
+        "progressive_passes_per_90",
+        "xg_per_90",
+        "xa_per_90",
+        "pressures_per_90",
     ],
     "forward": [
-        "goals_per_90", "xg_per_90", "shots_per_90", "xa_per_90",
-        "successful_dribbles_per_90", "pressures_per_90",
+        "goals_per_90",
+        "xg_per_90",
+        "shots_per_90",
+        "xa_per_90",
+        "successful_dribbles_per_90",
+        "pressures_per_90",
     ],
 }
 
@@ -88,7 +99,10 @@ def compute_per90_metrics(
 
     agg = grouped.agg(
         matches=("match_id", "nunique"),
-        passes_completed=("event_type", lambda x: ((x == "Pass") & events_df.loc[x.index, "pass_outcome"].isna()).sum()),
+        passes_completed=(
+            "event_type",
+            lambda x: ((x == "Pass") & events_df.loc[x.index, "pass_outcome"].isna()).sum(),
+        ),
         passes_attempted=("event_type", lambda x: (x == "Pass").sum()),
         shots=("event_type", lambda x: (x == "Shot").sum()),
         goals=("shot_outcome", lambda x: (x == "Goal").sum()),
@@ -125,9 +139,7 @@ def compute_per90_metrics(
     agg["interceptions_per_90"] = agg["interceptions"] * per90_factor
     agg["successful_dribbles_per_90"] = agg["dribbles_completed"] * per90_factor
     agg["progressive_carries_per_90"] = agg["carries"] * per90_factor * 0.3  # Estimate
-    agg["pass_accuracy"] = (
-        agg["passes_completed"] / agg["passes_attempted"].clip(lower=1)
-    )
+    agg["pass_accuracy"] = agg["passes_completed"] / agg["passes_attempted"].clip(lower=1)
 
     return agg
 
@@ -288,13 +300,15 @@ def identify_breakout_candidates(
         trajectory = _classify_trajectory(slopes, position_group)
 
         if trajectory in ("improving", "breakout"):
-            candidates.append({
-                "player_id": player_id,
-                "seasons_tracked": len(player_data),
-                "trajectory": trajectory,
-                "avg_improvement_slope": round(avg_improvement, 4),
-                "key_improvements": {k: round(v, 4) for k, v in slopes.items() if v > 0.01},
-            })
+            candidates.append(
+                {
+                    "player_id": player_id,
+                    "seasons_tracked": len(player_data),
+                    "trajectory": trajectory,
+                    "avg_improvement_slope": round(avg_improvement, 4),
+                    "key_improvements": {k: round(v, 4) for k, v in slopes.items() if v > 0.01},
+                }
+            )
 
     result = pd.DataFrame(candidates)
     if not result.empty:
@@ -372,18 +386,22 @@ def generate_development_report(profile: DevelopmentProfile) -> str:
         lines.append(f"  {direction} {metric}: {slope:+.4f}/season")
 
     if profile.percentile_changes:
-        lines.extend([
-            "",
-            "Overall Changes (first → last season):",
-            "─" * 40,
-        ])
+        lines.extend(
+            [
+                "",
+                "Overall Changes (first → last season):",
+                "─" * 40,
+            ]
+        )
         for metric, change in sorted(profile.percentile_changes.items(), key=lambda x: x[1], reverse=True):
             lines.append(f"  {metric}: {change:+.1f}%")
 
     if profile.predicted_peak_age:
-        lines.extend([
-            "",
-            f"Expected peak age range: {_PEAK_AGE_RANGES[profile.position_group]}",
-        ])
+        lines.extend(
+            [
+                "",
+                f"Expected peak age range: {_PEAK_AGE_RANGES[profile.position_group]}",
+            ]
+        )
 
     return "\n".join(lines)

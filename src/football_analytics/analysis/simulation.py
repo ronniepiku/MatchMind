@@ -184,14 +184,16 @@ def simulate_match_minute_by_minute(
         drawing = (cum_home[:, t] == cum_away[:, t]).mean()
         away_leading = (cum_home[:, t] < cum_away[:, t]).mean()
 
-        records.append({
-            "minute": t + 1,
-            "home_win_prob": round(float(home_leading), 4),
-            "draw_prob": round(float(drawing), 4),
-            "away_win_prob": round(float(away_leading), 4),
-            "avg_home_goals": round(float(cum_home[:, t].mean()), 2),
-            "avg_away_goals": round(float(cum_away[:, t].mean()), 2),
-        })
+        records.append(
+            {
+                "minute": t + 1,
+                "home_win_prob": round(float(home_leading), 4),
+                "draw_prob": round(float(drawing), 4),
+                "away_win_prob": round(float(away_leading), 4),
+                "avg_home_goals": round(float(cum_home[:, t].mean()), 2),
+                "avg_away_goals": round(float(cum_away[:, t].mean()), 2),
+            }
+        )
 
     return pd.DataFrame(records)
 
@@ -337,15 +339,17 @@ def simulate_season(
     for tid in team_strength:
         points_arr = np.array(team_points[tid])
         gd_arr = np.array(team_gd[tid])
-        results.append({
-            "team_id": tid,
-            "avg_points": round(float(points_arr.mean()), 1),
-            "median_points": float(np.median(points_arr)),
-            "points_std": round(float(points_arr.std()), 1),
-            "avg_gd": round(float(gd_arr.mean()), 1),
-            "top_4_prob": round(float((points_arr >= np.percentile(points_arr, 75)).mean()), 3),
-            "title_prob": round(float((points_arr >= points_arr.max() * 0.95).mean()), 3),
-        })
+        results.append(
+            {
+                "team_id": tid,
+                "avg_points": round(float(points_arr.mean()), 1),
+                "median_points": float(np.median(points_arr)),
+                "points_std": round(float(points_arr.std()), 1),
+                "avg_gd": round(float(gd_arr.mean()), 1),
+                "top_4_prob": round(float((points_arr >= np.percentile(points_arr, 75)).mean()), 3),
+                "title_prob": round(float((points_arr >= points_arr.max() * 0.95).mean()), 3),
+            }
+        )
 
     return pd.DataFrame(results).sort_values("avg_points", ascending=False)
 

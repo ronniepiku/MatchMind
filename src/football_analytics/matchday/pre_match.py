@@ -137,9 +137,7 @@ def generate_pre_match_pack(
     engine = engine or get_engine()
 
     # Resolve fixture details
-    fixture_info = _resolve_fixture(
-        engine, fixture_id, home_team_id, away_team_id, competition_id, season_id
-    )
+    fixture_info = _resolve_fixture(engine, fixture_id, home_team_id, away_team_id, competition_id, season_id)
     h_id = fixture_info["home_team_id"]
     a_id = fixture_info["away_team_id"]
     our_id = our_team_id or h_id
@@ -148,9 +146,7 @@ def generate_pre_match_pack(
     szn_id = fixture_info.get("season_id")
 
     # 1. Match prediction
-    prediction = _get_prediction(
-        engine, h_id, a_id, comp_id, fixture_info["venue_type"]
-    )
+    prediction = _get_prediction(engine, h_id, a_id, comp_id, fixture_info["venue_type"])
 
     # 2. Opponent profile
     attack_patterns = _get_attack_patterns(engine, opponent_id, szn_id)
@@ -175,9 +171,7 @@ def generate_pre_match_pack(
     # Identify vulnerabilities (dimensions where opponent has advantage)
     vulnerabilities = []
     for dim in matchup.get("dimensions", []):
-        if (is_home and dim.get("advantage", 0) < -0.2) or (
-            not is_home and dim.get("advantage", 0) > 0.2
-        ):
+        if (is_home and dim.get("advantage", 0) < -0.2) or (not is_home and dim.get("advantage", 0) > 0.2):
             vulnerabilities.append(dim.get("description", ""))
 
     return PreMatchPack(
@@ -194,17 +188,14 @@ def generate_pre_match_pack(
         expected_score=prediction["most_likely_score"],
         prediction_confidence=prediction["confidence"],
         predicted_xg_for=prediction["xg_home"] if is_home else prediction["xg_away"],
-        predicted_xg_against=(
-            prediction["xg_away"] if is_home else prediction["xg_home"]
-        ),
+        predicted_xg_against=(prediction["xg_away"] if is_home else prediction["xg_home"]),
         opponent_attack_patterns=attack_patterns,
         opponent_defensive_shape=defensive_shape,
         opponent_key_players=key_players,
         tactical_advantages=[
             d
             for d in matchup.get("dimensions", [])
-            if (is_home and d.get("advantage", 0) > 0.15)
-            or (not is_home and d.get("advantage", 0) < -0.15)
+            if (is_home and d.get("advantage", 0) > 0.15) or (not is_home and d.get("advantage", 0) < -0.15)
         ],
         tactical_vulnerabilities=vulnerabilities,
         key_battles=matchup.get("key_battles", []),
@@ -275,11 +266,7 @@ def _get_prediction(
             VenueType,
         )
 
-        venue = (
-            VenueType(venue_type)
-            if venue_type in ("home", "away", "neutral")
-            else VenueType.HOME
-        )
+        venue = VenueType(venue_type) if venue_type in ("home", "away", "neutral") else VenueType.HOME
         predictor = MatchPredictor(engine=engine)
         prediction = predictor.predict(
             team_a_id=home_id,
@@ -309,9 +296,7 @@ def _get_prediction(
         }
 
 
-def _get_attack_patterns(
-    engine: Engine, team_id: int, season_id: int | None
-) -> list[dict[str, Any]]:
+def _get_attack_patterns(engine: Engine, team_id: int, season_id: int | None) -> list[dict[str, Any]]:
     """Get opponent attack pattern breakdown."""
     try:
         from football_analytics.analysis.opponent_profile import (
@@ -328,9 +313,7 @@ def _get_attack_patterns(
         return []
 
 
-def _get_defensive_shape(
-    engine: Engine, team_id: int, season_id: int | None
-) -> list[dict[str, Any]]:
+def _get_defensive_shape(engine: Engine, team_id: int, season_id: int | None) -> list[dict[str, Any]]:
     """Get opponent defensive shape analysis."""
     try:
         from football_analytics.analysis.opponent_profile import (
@@ -347,9 +330,7 @@ def _get_defensive_shape(
         return []
 
 
-def _get_key_players(
-    engine: Engine, team_id: int, season_id: int | None
-) -> list[KeyPlayerThreat]:
+def _get_key_players(engine: Engine, team_id: int, season_id: int | None) -> list[KeyPlayerThreat]:
     """Get opponent key player threats."""
     try:
         from football_analytics.analysis.opponent_profile import (
@@ -371,9 +352,7 @@ def _get_key_players(
                     position="",  # Position not in current query
                     xg_per_match=round(float(row.get("total_xg", 0) or 0) / matches, 3),
                     xa_per_match=round(float(row.get("total_xa", 0) or 0) / matches, 3),
-                    key_passes_per_match=round(
-                        int(row.get("key_passes", 0)) / matches, 1
-                    ),
+                    key_passes_per_match=round(int(row.get("key_passes", 0)) / matches, 1),
                     threat_description=_describe_player_threat(row),
                 )
             )
@@ -429,9 +408,7 @@ def _get_tactical_matchup(
         return {"dimensions": [], "key_battles": [], "recommendations": []}
 
 
-def _get_set_piece_intel(
-    engine: Engine, team_id: int, season_id: int | None
-) -> SetPieceIntel | None:
+def _get_set_piece_intel(engine: Engine, team_id: int, season_id: int | None) -> SetPieceIntel | None:
     """Get set-piece intelligence for opponent."""
     if season_id is None:
         return None
@@ -454,22 +431,14 @@ def _get_set_piece_intel(
 
     try:
         with engine.connect() as conn:
-            result = (
-                conn.execute(query, {"team_id": team_id, "season_id": season_id})
-                .mappings()
-                .fetchone()
-            )
+            result = conn.execute(query, {"team_id": team_id, "season_id": season_id}).mappings().fetchone()
 
         if not result or result["matches"] == 0:
             return None
 
         matches = result["matches"]
         aerial_rate = result["aerial_wins"] / max(result["aerial_total"], 1)
-        aerial_level = (
-            "high"
-            if aerial_rate > 0.55
-            else ("medium" if aerial_rate > 0.45 else "low")
-        )
+        aerial_level = "high" if aerial_rate > 0.55 else ("medium" if aerial_rate > 0.45 else "low")
 
         return SetPieceIntel(
             corners_per_match=round(result["corners"] / matches, 1),
@@ -482,9 +451,7 @@ def _get_set_piece_intel(
         return None
 
 
-def _get_recent_form(
-    engine: Engine, team_id: int, season_id: int | None, n_matches: int = 5
-) -> list[FormRecord]:
+def _get_recent_form(engine: Engine, team_id: int, season_id: int | None, n_matches: int = 5) -> list[FormRecord]:
     """Get recent match results for a team."""
     query = text("""
         SELECT m.match_id, m.match_date, m.home_team_id, m.away_team_id,

@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+
 from football_analytics.ingest_orchestrator import (
     CompetitionRegistry,
     IngestionOrchestrator,
 )
 from football_analytics.prediction.model_versioning import (
     MODEL_VERSION,
-    AccuracyReport,
     ModelVersion,
-    PredictionRecord,
     PredictionVersionManager,
 )
 
@@ -26,7 +24,7 @@ from football_analytics.prediction.model_versioning import (
 class TestCompetitionRegistry:
     """Tests for the competition registry dataclass."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         reg = CompetitionRegistry(
             competition_id=43,
             season_id=106,
@@ -37,7 +35,7 @@ class TestCompetitionRegistry:
         assert reg.matches_synced == 0
         assert reg.priority == 1
 
-    def test_all_fields(self):
+    def test_all_fields(self) -> None:
         reg = CompetitionRegistry(
             competition_id=2,
             season_id=90,
@@ -67,10 +65,10 @@ class TestIngestionOrchestrator:
     def orchestrator(self, mock_engine):
         return IngestionOrchestrator(engine=mock_engine)
 
-    def test_instantiation(self, orchestrator):
+    def test_instantiation(self, orchestrator) -> None:
         assert orchestrator is not None
 
-    def test_register_competition(self, orchestrator, mock_engine):
+    def test_register_competition(self, orchestrator, mock_engine) -> None:
         """Register should execute SQL to insert/upsert into registry."""
         mock_conn = MagicMock()
         mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
@@ -85,7 +83,7 @@ class TestIngestionOrchestrator:
         # Should have called execute at least once
         mock_conn.execute.assert_called()
 
-    def test_get_sync_status(self, orchestrator, mock_engine):
+    def test_get_sync_status(self, orchestrator, mock_engine) -> None:
         """get_sync_status queries the registry table."""
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
@@ -112,7 +110,7 @@ class TestIngestionOrchestrator:
 class TestModelVersion:
     """Tests for model version metadata."""
 
-    def test_params_hash_deterministic(self):
+    def test_params_hash_deterministic(self) -> None:
         v1 = ModelVersion(
             version="1.0.0",
             description="Initial",
@@ -128,7 +126,7 @@ class TestModelVersion:
         # Same params in different order → same hash
         assert v1.params_hash == v2.params_hash
 
-    def test_different_params_different_hash(self):
+    def test_different_params_different_hash(self) -> None:
         v1 = ModelVersion(
             version="1.0.0",
             description="V1",
@@ -147,7 +145,7 @@ class TestModelVersion:
 class TestMODEL_VERSION:
     """Tests for the module-level version constant."""
 
-    def test_semantic_version_format(self):
+    def test_semantic_version_format(self) -> None:
         parts = MODEL_VERSION.split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
@@ -167,17 +165,17 @@ class TestPredictionVersionManager:
     def manager(self, mock_engine):
         return PredictionVersionManager(engine=mock_engine)
 
-    def test_instantiation(self, manager):
+    def test_instantiation(self, manager) -> None:
         assert manager is not None
 
-    def test_store_prediction(self, manager, mock_engine):
+    def test_store_prediction(self, manager, mock_engine) -> None:
         """store_prediction should persist a prediction record."""
         mock_conn = MagicMock()
         mock_conn.execute.return_value.scalar.return_value = 1
         mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
 
-        result = manager.store_prediction(
+        manager.store_prediction(
             match_id=1001,
             home_win_prob=0.45,
             draw_prob=0.28,
@@ -186,7 +184,7 @@ class TestPredictionVersionManager:
         )
         mock_conn.execute.assert_called()
 
-    def test_accuracy_report_with_no_data(self, manager, mock_engine):
+    def test_accuracy_report_with_no_data(self, manager, mock_engine) -> None:
         """accuracy_report with empty data should handle gracefully."""
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)

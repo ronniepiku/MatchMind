@@ -63,11 +63,14 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 target-version = "py310"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "SIM"]
-ignore = ["ANN101", "ANN102", "ANN401"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501", "N806", "N801", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B904"]
 
 [tool.mypy]
 python_version = "3.10"

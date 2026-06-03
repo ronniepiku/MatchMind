@@ -83,9 +83,7 @@ def cached_query(
             logger.debug("Cache HIT: %s (age=%.0fs)", name, age)
             return pd.read_parquet(path)
         else:
-            logger.debug(
-                "Cache STALE: %s (age=%.0fs > ttl=%ds)", name, age, ttl_seconds
-            )
+            logger.debug("Cache STALE: %s (age=%.0fs > ttl=%ds)", name, age, ttl_seconds)
 
     # Cache miss — execute query
     logger.debug("Cache MISS: %s — executing query", name)
@@ -168,9 +166,7 @@ def precompute_cache(engine: Any, season_id: int) -> None:
     # Cache all team stats for the season
     with engine.connect() as conn:
         teams = pd.read_sql(
-            sql_text(
-                "SELECT DISTINCT team_id FROM mv_team_season_stats WHERE season_id = :sid"
-            ),
+            sql_text("SELECT DISTINCT team_id FROM mv_team_season_stats WHERE season_id = :sid"),
             conn,
             params={"sid": season_id},
         )

@@ -244,9 +244,7 @@ def _build_tactical_profile(
         "pass_accuracy": float(row["pass_accuracy"] or 0),
         "long_passes_per_match": float(row["long_passes_per_match"] or 0),
         "progressive_passes_per_match": float(row["progressive_passes_per_match"] or 0),
-        "progressive_carries_per_match": float(
-            row["progressive_carries_per_match"] or 0
-        ),
+        "progressive_carries_per_match": float(row["progressive_carries_per_match"] or 0),
         "pressures_per_match": float(row["pressures_per_match"] or 0),
         "counterpresses_per_match": float(row["counterpresses_per_match"] or 0),
         "avg_pressure_height": float(row["avg_pressure_height"] or 50),
@@ -293,14 +291,8 @@ def _compare_dimensions(profile_a: dict, profile_b: dict) -> list[TacticalDimens
     )
 
     # 3. Build-up quality
-    prog_a = (
-        profile_a["progressive_passes_per_match"]
-        + profile_a["progressive_carries_per_match"]
-    )
-    prog_b = (
-        profile_b["progressive_passes_per_match"]
-        + profile_b["progressive_carries_per_match"]
-    )
+    prog_a = profile_a["progressive_passes_per_match"] + profile_a["progressive_carries_per_match"]
+    prog_b = profile_b["progressive_passes_per_match"] + profile_b["progressive_carries_per_match"]
     prog_max = max(prog_a, prog_b, 1)
     dimensions.append(
         TacticalDimension(
@@ -390,10 +382,7 @@ def _identify_key_battles(profile_a: dict, profile_b: dict) -> list[KeyBattle]:
         )
 
     # High line vs counter-attack
-    if (
-        profile_b["avg_defensive_line"] > 50
-        and profile_a["counter_attack_shot_share"] > 0.15
-    ):
+    if profile_b["avg_defensive_line"] > 50 and profile_a["counter_attack_shot_share"] > 0.15:
         battles.append(
             KeyBattle(
                 area="Space in behind",
@@ -407,10 +396,7 @@ def _identify_key_battles(profile_a: dict, profile_b: dict) -> list[KeyBattle]:
                 ),
             )
         )
-    elif (
-        profile_a["avg_defensive_line"] > 50
-        and profile_b["counter_attack_shot_share"] > 0.15
-    ):
+    elif profile_a["avg_defensive_line"] > 50 and profile_b["counter_attack_shot_share"] > 0.15:
         battles.append(
             KeyBattle(
                 area="Space in behind",
@@ -425,15 +411,9 @@ def _identify_key_battles(profile_a: dict, profile_b: dict) -> list[KeyBattle]:
         )
 
     # Set-piece advantage
-    sp_diff = abs(
-        profile_a["set_piece_xg_per_match"] - profile_b["set_piece_xg_per_match"]
-    )
+    sp_diff = abs(profile_a["set_piece_xg_per_match"] - profile_b["set_piece_xg_per_match"])
     if sp_diff > 0.1:
-        stronger = (
-            profile_a
-            if profile_a["set_piece_xg_per_match"] > profile_b["set_piece_xg_per_match"]
-            else profile_b
-        )
+        stronger = profile_a if profile_a["set_piece_xg_per_match"] > profile_b["set_piece_xg_per_match"] else profile_b
         weaker = profile_b if stronger == profile_a else profile_a
         battles.append(
             KeyBattle(
@@ -451,12 +431,7 @@ def _identify_key_battles(profile_a: dict, profile_b: dict) -> list[KeyBattle]:
 
     # Wide play vs narrow defence
     if profile_a["wide_pass_share"] > 0.35 or profile_b["wide_pass_share"] > 0.35:
-        wider = (
-            profile_a
-            if profile_a["wide_pass_share"] > profile_b["wide_pass_share"]
-            else profile_b
-        )
-        other = profile_b if wider == profile_a else profile_a
+        wider = profile_a if profile_a["wide_pass_share"] > profile_b["wide_pass_share"] else profile_b
         battles.append(
             KeyBattle(
                 area="Wide areas",
@@ -543,9 +518,7 @@ def _width_description(a: dict, b: dict) -> str:
     return f"Similar width usage ({w_a:.0%} vs {w_b:.0%})"
 
 
-def _generate_narrative(
-    profile_a: dict, profile_b: dict, dimensions: list[TacticalDimension]
-) -> str:
+def _generate_narrative(profile_a: dict, profile_b: dict, dimensions: list[TacticalDimension]) -> str:
     """Generate a coaching-friendly tactical narrative."""
     name_a = profile_a["team_name"]
     name_b = profile_b["team_name"]
@@ -553,34 +526,26 @@ def _generate_narrative(
     parts = []
 
     # Identify dominant dimensions
-    biggest_advantages = sorted(
-        dimensions, key=lambda d: abs(d.advantage), reverse=True
-    )
+    biggest_advantages = sorted(dimensions, key=lambda d: abs(d.advantage), reverse=True)
 
     for dim in biggest_advantages[:3]:
         if abs(dim.advantage) > 0.15:
             parts.append(dim.description + ".")
 
     if not parts:
-        parts.append(
-            f"{name_a} and {name_b} are tactically well-matched across most dimensions."
-        )
+        parts.append(f"{name_a} and {name_b} are tactically well-matched across most dimensions.")
 
     return " ".join(parts)
 
 
-def _generate_recommendations(
-    profile_a: dict, profile_b: dict, dimensions: list[TacticalDimension]
-) -> list[str]:
+def _generate_recommendations(profile_a: dict, profile_b: dict, dimensions: list[TacticalDimension]) -> list[str]:
     """Generate tactical recommendations for team A against team B."""
     recs = []
     name_b = profile_b["team_name"]
 
     # Exploit high line
     if profile_b["avg_defensive_line"] > 50:
-        recs.append(
-            f"Exploit space behind {name_b}'s high line with direct balls and quick transitions."
-        )
+        recs.append(f"Exploit space behind {name_b}'s high line with direct balls and quick transitions.")
 
     # Manage pressing
     if profile_b["pressures_per_match"] > 22:
@@ -589,10 +554,7 @@ def _generate_recommendations(
         )
 
     # Set-piece opportunity
-    if (
-        profile_b["set_piece_xg_per_match"] < 0.1
-        and profile_a["set_piece_xg_per_match"] > 0.15
-    ):
+    if profile_b["set_piece_xg_per_match"] < 0.1 and profile_a["set_piece_xg_per_match"] > 0.15:
         recs.append(
             "Set pieces represent a significant advantage. Prioritise winning corners and free kicks in dangerous areas."
         )
@@ -610,8 +572,6 @@ def _generate_recommendations(
         )
 
     if not recs:
-        recs.append(
-            "No significant tactical vulnerabilities identified. Focus on executing own game plan."
-        )
+        recs.append("No significant tactical vulnerabilities identified. Focus on executing own game plan.")
 
     return recs

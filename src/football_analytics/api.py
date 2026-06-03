@@ -24,7 +24,7 @@ import os
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Path, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -91,11 +91,7 @@ _allowed_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173",
 ).split(",")
-_validated_origins = [
-    o.strip()
-    for o in _allowed_origins
-    if o.strip().startswith(("http://", "https://"))
-]
+_validated_origins = [o.strip() for o in _allowed_origins if o.strip().startswith(("http://", "https://"))]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_validated_origins,
@@ -118,18 +114,12 @@ class HealthResponse(BaseModel):
 class ShotInput(BaseModel):
     """Input for xG prediction."""
 
-    location_x: float = Field(
-        ..., ge=0, le=120, description="X coordinate (StatsBomb pitch)"
-    )
-    location_y: float = Field(
-        ..., ge=0, le=80, description="Y coordinate (StatsBomb pitch)"
-    )
+    location_x: float = Field(..., ge=0, le=120, description="X coordinate (StatsBomb pitch)")
+    location_y: float = Field(..., ge=0, le=80, description="Y coordinate (StatsBomb pitch)")
     shot_body_part: str = Field("Foot", description="Body part: Foot, Head, Other")
     under_pressure: bool = Field(False, description="Whether shot was under pressure")
     play_pattern: str = Field("From Open Play", description="Play pattern")
-    shot_type: str | None = Field(
-        None, description="Shot type: Penalty, Free Kick, etc."
-    )
+    shot_type: str | None = Field(None, description="Shot type: Penalty, Free Kick, etc.")
 
 
 class XGPredictionResponse(BaseModel):
@@ -308,9 +298,7 @@ async def simulate_match_endpoint(request: Request, sim_req: SimulationRequest) 
     )
 
     # Convert scoreline tuples to string keys for JSON
-    top_scores = sorted(
-        result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True
-    )[:10]
+    top_scores = sorted(result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True)[:10]
     score_dict = {f"{h}-{a}": prob for (h, a), prob in top_scores}
 
     return SimulationResponse(
@@ -378,18 +366,14 @@ async def get_player_profile(
         key_passes=result.key_passes,
         passes_completed=result.passes_completed,
         passes_attempted=result.passes_attempted,
-        pass_accuracy=round(
-            result.passes_completed / max(result.passes_attempted, 1), 3
-        ),
+        pass_accuracy=round(result.passes_completed / max(result.passes_attempted, 1), 3),
         pressures=result.pressures,
         tackles=result.tackles,
         interceptions=result.interceptions,
     )
 
 
-@app.get(
-    "/api/v1/players/{player_id}/similar", response_model=list[SimilarPlayerResponse]
-)
+@app.get("/api/v1/players/{player_id}/similar", response_model=list[SimilarPlayerResponse])
 async def get_similar_players(
     player_id: int,
     season_id: int = Query(106, description="Season to compute vectors from"),
@@ -439,9 +423,7 @@ async def get_similar_players(
 @app.get("/api/v1/players/{player_id}/development", response_model=DevelopmentResponse)
 async def get_player_development(
     player_id: int,
-    position_group: str = Query(
-        "midfielder", description="Position group for metric selection"
-    ),
+    position_group: str = Query("midfielder", description="Position group for metric selection"),
 ) -> DevelopmentResponse:
     """Get player development trajectory across seasons.
 
@@ -512,13 +494,9 @@ async def get_player_development(
     per90_df["shots_per_90"] = per90_df["shots"] * per90_factor
     per90_df["key_passes_per_90"] = per90_df["key_passes"] * per90_factor
     per90_df["pressures_per_90"] = per90_df["pressures"] * per90_factor
-    per90_df["successful_dribbles_per_90"] = (
-        per90_df["dribbles_completed"] * per90_factor
-    )
+    per90_df["successful_dribbles_per_90"] = per90_df["dribbles_completed"] * per90_factor
     per90_df["passes_completed_per_90"] = per90_df["passes_completed"] * per90_factor
-    per90_df["pass_accuracy"] = per90_df["passes_completed"] / per90_df[
-        "passes_attempted"
-    ].clip(lower=1)
+    per90_df["pass_accuracy"] = per90_df["passes_completed"] / per90_df["passes_attempted"].clip(lower=1)
 
     # Get player name
     with engine.connect() as conn:
@@ -564,7 +542,8 @@ async def get_team_set_pieces(
     engine = _get_engine()
 
     # Fetch set-piece events for the team
-    query = text("""
+    query = text(
+        """
         SELECT e.*, p.player_name
         FROM events e
         LEFT JOIN players p ON e.player_id = p.player_id
@@ -573,7 +552,9 @@ async def get_team_set_pieces(
           AND e.play_pattern IN (
               'From Corner', 'From Free Kick', 'From Throw In'
           )
-    """ + (" AND m.season_id = :season_id" if season_id else ""))
+    """
+        + (" AND m.season_id = :season_id" if season_id else "")
+    )
 
     params: dict[str, Any] = {"team_id": team_id}
     if season_id:
@@ -599,9 +580,7 @@ async def get_team_set_pieces(
         corner_goal_rate=efficiency.get("corner_goal_rate"),
         free_kick_count=efficiency.get("free_kick_count"),
         free_kick_goal_rate=efficiency.get("free_kick_goal_rate"),
-        xg_from_set_pieces=(
-            round(sp_df["xg_generated"].sum(), 2) if not sp_df.empty else 0.0
-        ),
+        xg_from_set_pieces=(round(sp_df["xg_generated"].sum(), 2) if not sp_df.empty else 0.0),
     )
 
 
@@ -692,9 +671,7 @@ async def list_teams() -> list[dict[str, Any]]:
     engine = _get_engine()
     with engine.connect() as conn:
         df = pd.read_sql(
-            text(
-                "SELECT DISTINCT team_id AS id, team_name AS name FROM teams ORDER BY team_name"
-            ),
+            text("SELECT DISTINCT team_id AS id, team_name AS name FROM teams ORDER BY team_name"),
             conn,
         )
     return df.to_dict(orient="records")
@@ -819,7 +796,6 @@ async def get_opponent_report(
     season_id: int = Query(...),
 ) -> dict[str, Any]:
     """Generate opponent scouting report."""
-    import pandas as pd
     from sqlalchemy import text as _text
 
     from football_analytics.analysis.opponent_profile import build_opponent_report
@@ -846,7 +822,7 @@ async def get_opponent_report(
         for _, row in ap_df.iterrows():
             possessions = int(row.get("possessions", 0))
             shots = int(row.get("shots", 0))
-            goals = int(row.get("goals", 0))
+            int(row.get("goals", 0))
             success_rate = shots / max(possessions, 1)
             attack_patterns.append(
                 {
@@ -1110,16 +1086,10 @@ async def get_team_scorecard(
     transitions = compute_transition_metrics(chains)
 
     # Set pieces
-    sp_events = events_df[
-        events_df["play_pattern"].isin(
-            ["From Corner", "From Free Kick", "From Throw In"]
-        )
-    ]
+    sp_events = events_df[events_df["play_pattern"].isin(["From Corner", "From Free Kick", "From Throw In"])]
     sp_sequences = extract_set_pieces(sp_events) if not sp_events.empty else []
     sp_df = set_pieces_to_dataframe(sp_sequences) if sp_sequences else pd.DataFrame()
-    sp_efficiency = (
-        compute_set_piece_efficiency(sp_df, team_id) if not sp_df.empty else {}
-    )
+    sp_efficiency = compute_set_piece_efficiency(sp_df, team_id) if not sp_df.empty else {}
 
     # Defensive shape / pressing
     defensive_shape = get_opponent_defensive_shape(engine, team_id, season_id)
@@ -1152,25 +1122,18 @@ async def get_team_scorecard(
 
     # Possession style
     possession_profile = [
-        {"style": k, "percentage": round(v * 100, 1)}
-        for k, v in profile.get("style_distribution", {}).items()
+        {"style": k, "percentage": round(v * 100, 1)} for k, v in profile.get("style_distribution", {}).items()
     ]
 
     # Pressing intensity by zone
     pressing_data = []
-    if (
-        defensive_shape is not None
-        and hasattr(defensive_shape, "iterrows")
-        and not defensive_shape.empty
-    ):
+    if defensive_shape is not None and hasattr(defensive_shape, "iterrows") and not defensive_shape.empty:
         for _, zone_data in defensive_shape.iterrows():
             pressing_data.append(
                 {
                     "zone": zone_data.get("zone", "Unknown"),
                     "pressures_per_90": round(
-                        int(zone_data.get("pressures", 0))
-                        / max(n_matches, 1)
-                        * (90 / 95),
+                        int(zone_data.get("pressures", 0)) / max(n_matches, 1) * (90 / 95),
                         1,
                     ),
                 }
@@ -1182,9 +1145,7 @@ async def get_team_scorecard(
                     {
                         "zone": zone_data.get("zone", "Unknown"),
                         "pressures_per_90": round(
-                            zone_data.get("pressures", 0)
-                            / max(n_matches, 1)
-                            * (90 / 95),
+                            zone_data.get("pressures", 0) / max(n_matches, 1) * (90 / 95),
                             1,
                         ),
                     }
@@ -1216,9 +1177,7 @@ async def get_team_scorecard(
                         "chances_created": sp_efficiency.get(f"{sp_type}_chances", 0),
                         "goals": sp_efficiency.get(f"{sp_type}_goals", 0),
                         "xg": round(sp_efficiency.get(f"{sp_type}_xg", 0), 2),
-                        "conversion_rate": round(
-                            sp_efficiency.get(f"{sp_type}_goal_rate", 0), 3
-                        ),
+                        "conversion_rate": round(sp_efficiency.get(f"{sp_type}_goal_rate", 0), 3),
                     }
                 )
 
@@ -1386,19 +1345,12 @@ async def get_passing_network(
 
     # Compute edges (pass combinations)
     active_ids = set(avg_pos["player_id"].values)
-    edge_df = passes_df[
-        passes_df["player_id"].isin(active_ids)
-        & passes_df["pass_recipient_id"].isin(active_ids)
-    ]
+    edge_df = passes_df[passes_df["player_id"].isin(active_ids) & passes_df["pass_recipient_id"].isin(active_ids)]
 
     # Build name lookup
-    id_to_name = dict(zip(avg_pos["player_id"], avg_pos["player_name"]))
+    id_to_name = dict(zip(avg_pos["player_id"], avg_pos["player_name"], strict=False))
 
-    edge_counts = (
-        edge_df.groupby(["player_id", "pass_recipient_id"])
-        .size()
-        .reset_index(name="passes")
-    )
+    edge_counts = edge_df.groupby(["player_id", "pass_recipient_id"]).size().reset_index(name="passes")
 
     # Only keep edges with 3+ passes
     edge_counts = edge_counts[edge_counts["passes"] >= 3]
@@ -1575,13 +1527,8 @@ async def simulate_match_v2(request: Request, sim_req: SimulationV2Request) -> d
     )
 
     # Convert scoreline distribution
-    top_scores = sorted(
-        result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True
-    )[:15]
-    scoreline_dist = [
-        {"score": f"{h}-{a}", "probability": round(prob, 4)}
-        for (h, a), prob in top_scores
-    ]
+    top_scores = sorted(result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True)[:15]
+    scoreline_dist = [{"score": f"{h}-{a}", "probability": round(prob, 4)} for (h, a), prob in top_scores]
 
     return {
         "home_win_prob": round(result.home_win_prob, 4),
@@ -1606,9 +1553,7 @@ class MatchPredictionRequest(BaseModel):
 
     team_a_id: int = Field(..., description="First team ID")
     team_b_id: int = Field(..., description="Second team ID")
-    competition_id: int | None = Field(
-        None, description="Competition context for ratings"
-    )
+    competition_id: int | None = Field(None, description="Competition context for ratings")
     venue_type: str = Field("neutral", description="Venue: 'home', 'away', 'neutral'")
     n_simulations: int = Field(10000, ge=100, le=100000)
 
@@ -1617,15 +1562,9 @@ class TournamentSimulationRequest(BaseModel):
     """Request body for tournament simulation."""
 
     competition_id: int = Field(..., description="Competition ID")
-    format_type: str = Field(
-        ..., description="Format: 'league', 'groups_knockout', 'knockout'"
-    )
-    groups: list[dict[str, Any]] | None = Field(
-        None, description="Group configurations"
-    )
-    team_ids: list[int] | None = Field(
-        None, description="Team IDs (for league/knockout)"
-    )
+    format_type: str = Field(..., description="Format: 'league', 'groups_knockout', 'knockout'")
+    groups: list[dict[str, Any]] | None = Field(None, description="Group configurations")
+    team_ids: list[int] | None = Field(None, description="Team IDs (for league/knockout)")
     n_simulations: int = Field(10000, ge=100, le=100000)
     best_third_place_count: int = Field(0, ge=0)
     knockout_rounds: int = Field(0, ge=0)
@@ -1663,9 +1602,7 @@ async def predict_match(request: Request, pred_req: MatchPredictionRequest) -> d
         raise HTTPException(status_code=500, detail=str(exc))
 
     # Serialise scoreline probabilities
-    top_scores = sorted(
-        prediction.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True
-    )[:15]
+    top_scores = sorted(prediction.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True)[:15]
 
     return {
         "team_a": {"id": prediction.team_a_id, "name": prediction.team_a_name},
@@ -1686,9 +1623,7 @@ async def predict_match(request: Request, pred_req: MatchPredictionRequest) -> d
             "over_3_5": prediction.over_3_5_prob,
             "btts": prediction.btts_prob,
         },
-        "scoreline_distribution": [
-            {"score": f"{h}-{a}", "probability": prob} for (h, a), prob in top_scores
-        ],
+        "scoreline_distribution": [{"score": f"{h}-{a}", "probability": prob} for (h, a), prob in top_scores],
         "confidence": prediction.confidence,
         "venue_type": prediction.venue_type,
         "n_simulations": prediction.n_simulations,
@@ -1732,14 +1667,10 @@ async def get_team_ratings(
 
     comp_ids = [competition_id] if competition_id else None
     season_ids = [season_id] if season_id else None
-    ratings = rating_engine.compute_ratings(
-        competition_ids=comp_ids, season_ids=season_ids
-    )
+    ratings = rating_engine.compute_ratings(competition_ids=comp_ids, season_ids=season_ids)
 
     results = []
-    for tid, rating in sorted(
-        ratings.items(), key=lambda x: x[1].overall_rating, reverse=True
-    ):
+    for _tid, rating in sorted(ratings.items(), key=lambda x: x[1].overall_rating, reverse=True):
         results.append(
             {
                 "team_id": rating.team_id,
@@ -1848,18 +1779,14 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
 
     if fmt_type == CompetitionFormat.LEAGUE:
         if not tourn_req.team_ids:
-            raise HTTPException(
-                status_code=400, detail="team_ids required for league format"
-            )
+            raise HTTPException(status_code=400, detail="team_ids required for league format")
         fmt = TournamentFormat.premier_league(tourn_req.team_ids)
     elif fmt_type == CompetitionFormat.GROUPS_KNOCKOUT:
         if not tourn_req.groups:
-            raise HTTPException(
-                status_code=400, detail="groups required for groups_knockout format"
-            )
+            raise HTTPException(status_code=400, detail="groups required for groups_knockout format")
         group_configs = [
             GroupConfig(
-                group_name=g.get("group_name", f"Group {i+1}"),
+                group_name=g.get("group_name", f"Group {i + 1}"),
                 team_ids=g["team_ids"],
                 teams_advancing=g.get("teams_advancing", 2),
             )
@@ -1876,14 +1803,10 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
         )
     elif fmt_type == CompetitionFormat.KNOCKOUT:
         if not tourn_req.team_ids:
-            raise HTTPException(
-                status_code=400, detail="team_ids required for knockout format"
-            )
+            raise HTTPException(status_code=400, detail="team_ids required for knockout format")
         fmt = TournamentFormat.knockout_cup(tourn_req.team_ids)
     else:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported format: {tourn_req.format_type}"
-        )
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {tourn_req.format_type}")
 
     # Run simulation
     simulator = TournamentSimulator(ratings=ratings)
@@ -1891,9 +1814,7 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
 
     # Serialise results
     team_results = []
-    for tid, tr in sorted(
-        result.team_results.items(), key=lambda x: x[1].winner_prob, reverse=True
-    ):
+    for _tid, tr in sorted(result.team_results.items(), key=lambda x: x[1].winner_prob, reverse=True):
         team_results.append(
             {
                 "team_id": tr.team_id,
@@ -1993,9 +1914,7 @@ def get_matchday_calendar(
 
     try:
         manager = FixtureManager()
-        return manager.get_calendar_summary(
-            days_ahead=days_ahead, days_behind=days_behind
-        )
+        return manager.get_calendar_summary(days_ahead=days_ahead, days_behind=days_behind)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -2206,9 +2125,7 @@ def get_weekly_briefing(
         result["week_difficulty"] = briefing.week_difficulty.value
         for m in result.get("squad_metrics", []):
             m["rag"] = m["rag"].value if hasattr(m.get("rag"), "value") else m["rag"]
-            m["trend"] = (
-                m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
-            )
+            m["trend"] = m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
         return result
     except Exception as exc:
         logger.exception("Weekly briefing generation failed")
@@ -2224,16 +2141,12 @@ def get_player_assessment(request: PlayerAssessmentRequest) -> dict[str, Any]:
 
     try:
         gen = ExecutiveReportGenerator()
-        assessment = gen.player_assessment(
-            player_id=request.player_id, season_id=request.season_id
-        )
+        assessment = gen.player_assessment(player_id=request.player_id, season_id=request.season_id)
         result = asdict(assessment)
         result["trajectory"] = assessment.trajectory.value
         for k in result.get("kpis", []):
             k["rag"] = k["rag"].value if hasattr(k.get("rag"), "value") else k["rag"]
-            k["trend"] = (
-                k["trend"].value if hasattr(k.get("trend"), "value") else k["trend"]
-            )
+            k["trend"] = k["trend"].value if hasattr(k.get("trend"), "value") else k["trend"]
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -2271,16 +2184,12 @@ def get_post_match_executive_summary(
 
     try:
         gen = ExecutiveReportGenerator()
-        summary = gen.post_match_summary(
-            match_id=request.match_id, our_team_id=request.our_team_id
-        )
+        summary = gen.post_match_summary(match_id=request.match_id, our_team_id=request.our_team_id)
         result = asdict(summary)
         result["result_rag"] = summary.result_rag.value
         for m in result.get("key_metrics", []):
             m["rag"] = m["rag"].value if hasattr(m.get("rag"), "value") else m["rag"]
-            m["trend"] = (
-                m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
-            )
+            m["trend"] = m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
         return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

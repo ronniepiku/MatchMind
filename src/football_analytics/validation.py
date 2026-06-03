@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -64,9 +63,7 @@ class ValidationReport:
     @property
     def passed(self) -> bool:
         """True if no critical checks failed."""
-        return not any(
-            r for r in self.results if not r.passed and r.severity == "critical"
-        )
+        return not any(r for r in self.results if not r.passed and r.severity == "critical")
 
     @property
     def warnings(self) -> list[ValidationResult]:
@@ -141,18 +138,12 @@ class DataValidator:
         engine: Engine | None = None,
         strict: bool | None = None,
         log_to_db: bool = True,
-    ):
+    ) -> None:
         self._engine = engine or get_engine()
-        self._strict = (
-            strict
-            if strict is not None
-            else (os.getenv("DATA_QUALITY_STRICT", "false").lower() == "true")
-        )
+        self._strict = strict if strict is not None else (os.getenv("DATA_QUALITY_STRICT", "false").lower() == "true")
         self._log_to_db = log_to_db
 
-    def validate_batch(
-        self, df: pd.DataFrame, source: str = "batch"
-    ) -> ValidationReport:
+    def validate_batch(self, df: pd.DataFrame, source: str = "batch") -> ValidationReport:
         """Validate a DataFrame of event data.
 
         Runs all structural, statistical, and logical checks.
@@ -178,9 +169,7 @@ class DataValidator:
             self._persist_report(report)
 
         if self._strict and not report.passed:
-            failures = "; ".join(
-                f"{r.check_name}: {r.details}" for r in report.critical_failures
-            )
+            failures = "; ".join(f"{r.check_name}: {r.details}" for r in report.critical_failures)
             raise ValueError(f"Data validation failed (strict mode): {failures}")
 
         return report
@@ -225,11 +214,7 @@ class DataValidator:
             check_name="required_columns",
             passed=len(missing) == 0,
             severity="critical",
-            details=(
-                f"Missing columns: {sorted(missing)}"
-                if missing
-                else "All required columns present"
-            ),
+            details=(f"Missing columns: {sorted(missing)}" if missing else "All required columns present"),
             record_count=len(required),
             failed_count=len(missing),
         )
@@ -237,9 +222,7 @@ class DataValidator:
     def _check_event_types(self, df: pd.DataFrame) -> ValidationResult:
         """Check that event_type values are from the known set."""
         if "event_type" not in df.columns:
-            return ValidationResult(
-                check_name="event_types", passed=True, record_count=0
-            )
+            return ValidationResult(check_name="event_types", passed=True, record_count=0)
         unknown = set(df["event_type"].dropna().unique()) - self.VALID_EVENT_TYPES
         return ValidationResult(
             check_name="event_types",
@@ -299,9 +282,7 @@ class DataValidator:
     def _check_temporal_order(self, df: pd.DataFrame) -> ValidationResult:
         """Check that events within each match are temporally ordered."""
         if "minute" not in df.columns or "match_id" not in df.columns:
-            return ValidationResult(
-                check_name="temporal_order", passed=True, record_count=0
-            )
+            return ValidationResult(check_name="temporal_order", passed=True, record_count=0)
 
         issues = 0
         total_matches = df["match_id"].nunique()
@@ -316,11 +297,7 @@ class DataValidator:
             check_name="temporal_order",
             passed=issues == 0,
             severity="warning",
-            details=(
-                f"{issues} temporal ordering issues across {total_matches} matches"
-                if issues
-                else ""
-            ),
+            details=(f"{issues} temporal ordering issues across {total_matches} matches" if issues else ""),
             record_count=total_matches,
             failed_count=issues,
         )
@@ -331,9 +308,7 @@ class DataValidator:
         existing = [c for c in critical_cols if c in df.columns]
 
         if not existing:
-            return ValidationResult(
-                check_name="null_rates", passed=True, record_count=0
-            )
+            return ValidationResult(check_name="null_rates", passed=True, record_count=0)
 
         null_counts = df[existing].isnull().sum()
         high_null = null_counts[null_counts > len(df) * 0.01]
@@ -350,9 +325,7 @@ class DataValidator:
     def _check_duplicate_events(self, df: pd.DataFrame) -> ValidationResult:
         """Check for duplicate event IDs."""
         if "event_id" not in df.columns:
-            return ValidationResult(
-                check_name="duplicate_events", passed=True, record_count=0
-            )
+            return ValidationResult(check_name="duplicate_events", passed=True, record_count=0)
 
         dupes = df["event_id"].duplicated().sum()
         return ValidationResult(

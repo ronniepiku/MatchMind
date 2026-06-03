@@ -138,8 +138,14 @@ def get_player_radar_percentiles(
         return pd.DataFrame()
 
     # Calculate percentile ranks
-    metrics = ["xg_per_match", "xa_per_match", "passes_per_match",
-               "dribbles_per_match", "pressures_per_match", "def_actions_per_match"]
+    metrics = [
+        "xg_per_match",
+        "xa_per_match",
+        "passes_per_match",
+        "dribbles_per_match",
+        "pressures_per_match",
+        "def_actions_per_match",
+    ]
 
     player_row = all_players[all_players["player_id"] == player_id].iloc[0]
     percentiles = {}

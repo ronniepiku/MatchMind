@@ -11,13 +11,11 @@ Covers:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
+
 from football_analytics.matchday.fixtures import (
     Fixture,
-    FixtureManager,
     FixturePriority,
     FixtureStatus,
 )
@@ -25,7 +23,6 @@ from football_analytics.matchday.post_match import (
     PlayerMatchRating,
     PostMatchReview,
     PredictionAudit,
-    UnitPerformance,
     _compute_unit_performances,
     _generate_tactical_observations,
     _identify_improvements,
@@ -41,7 +38,6 @@ from football_analytics.matchday.reviews import (
     CompetitionReview,
     OpponentDossier,
     PlayerReview,
-    UnitReview,
     _assess_player_qualities,
 )
 
@@ -53,52 +49,52 @@ from football_analytics.matchday.reviews import (
 class TestFixture:
     """Test Fixture dataclass properties."""
 
-    def test_is_upcoming_future_date(self):
+    def test_is_upcoming_future_date(self) -> None:
         f = Fixture(match_date=date.today() + timedelta(days=3))
         assert f.is_upcoming is True
 
-    def test_is_upcoming_past_date(self):
+    def test_is_upcoming_past_date(self) -> None:
         f = Fixture(match_date=date.today() - timedelta(days=1))
         assert f.is_upcoming is False
 
-    def test_is_upcoming_today(self):
+    def test_is_upcoming_today(self) -> None:
         f = Fixture(match_date=date.today())
         assert f.is_upcoming is True
 
-    def test_days_until_positive(self):
+    def test_days_until_positive(self) -> None:
         f = Fixture(match_date=date.today() + timedelta(days=5))
         assert f.days_until == 5
 
-    def test_days_until_negative(self):
+    def test_days_until_negative(self) -> None:
         f = Fixture(match_date=date.today() - timedelta(days=2))
         assert f.days_until == -2
 
-    def test_days_until_none_when_no_date(self):
+    def test_days_until_none_when_no_date(self) -> None:
         f = Fixture(match_date=None)
         assert f.days_until is None
 
-    def test_needs_preview_within_3_days(self):
+    def test_needs_preview_within_3_days(self) -> None:
         f = Fixture(
             match_date=date.today() + timedelta(days=2),
             status=FixtureStatus.SCHEDULED,
         )
         assert f.needs_preview is True
 
-    def test_needs_preview_too_far(self):
+    def test_needs_preview_too_far(self) -> None:
         f = Fixture(
             match_date=date.today() + timedelta(days=5),
             status=FixtureStatus.SCHEDULED,
         )
         assert f.needs_preview is False
 
-    def test_needs_preview_already_generated(self):
+    def test_needs_preview_already_generated(self) -> None:
         f = Fixture(
             match_date=date.today() + timedelta(days=1),
             status=FixtureStatus.PREVIEW_GENERATED,
         )
         assert f.needs_preview is False
 
-    def test_display_name(self):
+    def test_display_name(self) -> None:
         f = Fixture(home_team_name="Arsenal", away_team_name="Chelsea")
         assert f.display_name == "Arsenal vs Chelsea"
 
@@ -106,12 +102,12 @@ class TestFixture:
 class TestFixtureStatus:
     """Test fixture status enum."""
 
-    def test_all_statuses(self):
+    def test_all_statuses(self) -> None:
         assert len(FixtureStatus) == 5
         assert FixtureStatus.SCHEDULED.value == "scheduled"
         assert FixtureStatus.REVIEWED.value == "reviewed"
 
-    def test_lifecycle_order(self):
+    def test_lifecycle_order(self) -> None:
         lifecycle = [
             FixtureStatus.SCHEDULED,
             FixtureStatus.PREVIEW_GENERATED,
@@ -125,10 +121,10 @@ class TestFixtureStatus:
 class TestFixturePriority:
     """Test fixture priority enum."""
 
-    def test_critical_highest(self):
+    def test_critical_highest(self) -> None:
         assert FixturePriority.CRITICAL.value < FixturePriority.LOW.value
 
-    def test_all_priorities(self):
+    def test_all_priorities(self) -> None:
         assert len(FixturePriority) == 4
 
 
@@ -140,7 +136,7 @@ class TestFixturePriority:
 class TestPreMatchPack:
     """Test PreMatchPack structure."""
 
-    def test_dataclass_construction(self):
+    def test_dataclass_construction(self) -> None:
         pack = PreMatchPack(
             fixture_id=1,
             match_date=date.today(),
@@ -156,9 +152,7 @@ class TestPreMatchPack:
             prediction_confidence="medium",
             predicted_xg_for=1.8,
             predicted_xg_against=1.2,
-            opponent_attack_patterns=[
-                {"pattern": "left_wing_overload", "frequency": 0.3}
-            ],
+            opponent_attack_patterns=[{"pattern": "left_wing_overload", "frequency": 0.3}],
             opponent_defensive_shape=[{"line_height": "high"}],
             opponent_key_players=[],
             tactical_advantages=[],
@@ -170,7 +164,7 @@ class TestPreMatchPack:
         assert pack.win_probability == 0.45
         assert len(pack.tactical_vulnerabilities) == 1
 
-    def test_probabilities_sum_to_one(self):
+    def test_probabilities_sum_to_one(self) -> None:
         pack = PreMatchPack(
             fixture_id=1,
             match_date=date.today(),
@@ -201,7 +195,7 @@ class TestPreMatchPack:
 class TestKeyPlayerThreat:
     """Test KeyPlayerThreat dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         threat = KeyPlayerThreat(
             player_name="Mohamed Salah",
             position="RW",
@@ -217,22 +211,22 @@ class TestKeyPlayerThreat:
 class TestDescribePlayerThreat:
     """Test the threat description helper."""
 
-    def test_goal_threat(self):
+    def test_goal_threat(self) -> None:
         row = pd.Series({"total_xg": 8.0, "total_xa": 2.0, "dribbles": 1})
         desc = _describe_player_threat(row)
         assert "goal threat" in desc.lower()
 
-    def test_creative_playmaker(self):
+    def test_creative_playmaker(self) -> None:
         row = pd.Series({"total_xg": 1.0, "total_xa": 6.0, "dribbles": 1})
         desc = _describe_player_threat(row)
         assert "playmaker" in desc.lower()
 
-    def test_dribbler(self):
+    def test_dribbler(self) -> None:
         row = pd.Series({"total_xg": 2.0, "total_xa": 2.0, "dribbles": 5})
         desc = _describe_player_threat(row)
         assert "ball" in desc.lower() or "carries" in desc.lower()
 
-    def test_balanced(self):
+    def test_balanced(self) -> None:
         row = pd.Series({"total_xg": 3.0, "total_xa": 3.0, "dribbles": 1})
         desc = _describe_player_threat(row)
         assert "balanced" in desc.lower()
@@ -241,7 +235,7 @@ class TestDescribePlayerThreat:
 class TestSetPieceIntel:
     """Test SetPieceIntel dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         intel = SetPieceIntel(
             corners_per_match=5.2,
             free_kicks_per_match=3.1,
@@ -256,7 +250,7 @@ class TestSetPieceIntel:
 class TestFormRecord:
     """Test FormRecord dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         record = FormRecord(
             match_date=date(2024, 1, 15),
             opponent="Chelsea",
@@ -278,7 +272,7 @@ class TestFormRecord:
 class TestPostMatchReview:
     """Test PostMatchReview structure."""
 
-    def test_dataclass_construction(self):
+    def test_dataclass_construction(self) -> None:
         review = PostMatchReview(
             fixture_id=1,
             match_id=100,
@@ -307,7 +301,7 @@ class TestPostMatchReview:
 class TestPredictionAudit:
     """Test PredictionAudit."""
 
-    def test_correct_prediction(self):
+    def test_correct_prediction(self) -> None:
         audit = PredictionAudit(
             predicted_winner="home",
             actual_winner="home",
@@ -326,7 +320,7 @@ class TestPredictionAudit:
         assert audit.score_correct is True
         assert audit.brier_score < 0.2
 
-    def test_incorrect_prediction(self):
+    def test_incorrect_prediction(self) -> None:
         audit = PredictionAudit(
             predicted_winner="home",
             actual_winner="away",
@@ -348,7 +342,7 @@ class TestPredictionAudit:
 class TestComputeUnitPerformances:
     """Test unit performance aggregation."""
 
-    def test_groups_by_role(self):
+    def test_groups_by_role(self) -> None:
         players = [
             PlayerMatchRating(
                 player_id=1,
@@ -399,7 +393,7 @@ class TestComputeUnitPerformances:
         units = _compute_unit_performances(players)
         assert len(units) >= 1  # At least one unit should be populated
 
-    def test_empty_input(self):
+    def test_empty_input(self) -> None:
         units = _compute_unit_performances([])
         assert units == []
 
@@ -407,7 +401,7 @@ class TestComputeUnitPerformances:
 class TestTacticalObservations:
     """Test tactical observation generation."""
 
-    def test_high_press(self):
+    def test_high_press(self) -> None:
         team_stats = {
             "pressures": 220,
             "pass_accuracy": 85.0,
@@ -421,7 +415,7 @@ class TestTacticalObservations:
         obs = _generate_tactical_observations(team_stats, opp_stats, {}, True)
         assert any("press" in o.lower() for o in obs)
 
-    def test_low_shot_quality(self):
+    def test_low_shot_quality(self) -> None:
         team_stats = {
             "pressures": 150,
             "pass_accuracy": 82.0,
@@ -439,13 +433,13 @@ class TestTacticalObservations:
 class TestIdentifyImprovements:
     """Test improvement area identification."""
 
-    def test_poor_accuracy(self):
+    def test_poor_accuracy(self) -> None:
         team_stats = {"shots": 15, "shots_on_target": 3, "pass_accuracy": 72.0}
         opp_stats = {"xg": 1.0}
         areas = _identify_improvements(team_stats, opp_stats, [])
         assert any("shot" in a.lower() or "accuracy" in a.lower() for a in areas)
 
-    def test_high_opp_xg(self):
+    def test_high_opp_xg(self) -> None:
         team_stats = {"shots": 10, "shots_on_target": 5, "pass_accuracy": 85.0}
         opp_stats = {"xg": 2.0}
         areas = _identify_improvements(team_stats, opp_stats, [])
@@ -460,7 +454,7 @@ class TestIdentifyImprovements:
 class TestPlayerReview:
     """Test PlayerReview dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         review = PlayerReview(
             player_id=1,
             player_name="Bruno Fernandes",
@@ -491,7 +485,7 @@ class TestPlayerReview:
 class TestAssessPlayerQualities:
     """Test player quality assessment logic."""
 
-    def test_goal_threat_identified(self):
+    def test_goal_threat_identified(self) -> None:
         stats = {
             "xg": 10.0,
             "xa": 2.0,
@@ -506,7 +500,7 @@ class TestAssessPlayerQualities:
         strengths, _ = _assess_player_qualities(stats, 30)
         assert any("goal" in s.lower() for s in strengths)
 
-    def test_low_pressing_flagged(self):
+    def test_low_pressing_flagged(self) -> None:
         stats = {
             "xg": 2.0,
             "xa": 1.0,
@@ -521,7 +515,7 @@ class TestAssessPlayerQualities:
         _, dev_areas = _assess_player_qualities(stats, 30)
         assert any("press" in d.lower() for d in dev_areas)
 
-    def test_high_pass_accuracy_strength(self):
+    def test_high_pass_accuracy_strength(self) -> None:
         stats = {
             "xg": 1.0,
             "xa": 5.0,
@@ -540,7 +534,7 @@ class TestAssessPlayerQualities:
 class TestCompetitionReview:
     """Test CompetitionReview dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         review = CompetitionReview(
             competition_id=2,
             competition_name="Premier League",
@@ -570,7 +564,7 @@ class TestCompetitionReview:
 class TestOpponentDossier:
     """Test OpponentDossier dataclass."""
 
-    def test_construction(self):
+    def test_construction(self) -> None:
         dossier = OpponentDossier(
             team_id=10,
             team_name="Liverpool",
@@ -596,7 +590,7 @@ class TestOpponentDossier:
 class TestAPIModels:
     """Test Pydantic models for matchday API."""
 
-    def test_fixture_create_request(self):
+    def test_fixture_create_request(self) -> None:
         from football_analytics.api import FixtureCreateRequest
 
         req = FixtureCreateRequest(
@@ -612,7 +606,7 @@ class TestAPIModels:
         assert req.match_date == "2024-03-15"
         assert req.venue_type == "home"
 
-    def test_fixture_batch_create_request(self):
+    def test_fixture_batch_create_request(self) -> None:
         from football_analytics.api import (
             FixtureBatchCreateRequest,
             FixtureCreateRequest,
@@ -637,7 +631,7 @@ class TestAPIModels:
         req = FixtureBatchCreateRequest(fixtures=fixtures)
         assert len(req.fixtures) == 2
 
-    def test_post_match_request(self):
+    def test_post_match_request(self) -> None:
         from football_analytics.api import PostMatchRequest
 
         req = PostMatchRequest(match_id=100, our_team_id=1)

@@ -79,10 +79,7 @@ async def fetch_lineups_async(
     response = await client.get(url)
     response.raise_for_status()
     data = response.json()
-    return {
-        team["team_name"]: pd.DataFrame(team.get("lineup", []))
-        for team in data
-    }
+    return {team["team_name"]: pd.DataFrame(team.get("lineup", [])) for team in data}
 
 
 async def _process_match(
@@ -157,22 +154,24 @@ async def ingest_competition_async(
         all_teams = pd.concat([home_teams, away_teams]).drop_duplicates(subset=["team_id"])
         bulk_load_teams(engine, all_teams)
 
-        team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"]))
+        team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"], strict=False))
 
         # 2b. Load competition and matches (required for foreign keys)
         # Adapt json_normalize column names to what _load_matches expects
-        matches_compat = matches_df.rename(columns={
-            "home_team.home_team_id": "home_team_id",
-            "home_team.home_team_name": "home_team",
-            "away_team.away_team_id": "away_team_id",
-            "away_team.away_team_name": "away_team",
-            "competition.competition_name": "competition_name",
-            "season.season_name": "season_name",
-            "competition.country_name": "country_name",
-            "stadium.name": "stadium_name",
-            "referee.name": "referee_name",
-            "competition_stage.name": "competition_stage_name",
-        })
+        matches_compat = matches_df.rename(
+            columns={
+                "home_team.home_team_id": "home_team_id",
+                "home_team.home_team_name": "home_team",
+                "away_team.away_team_id": "away_team_id",
+                "away_team.away_team_name": "away_team",
+                "competition.competition_name": "competition_name",
+                "season.season_name": "season_name",
+                "competition.country_name": "country_name",
+                "stadium.name": "stadium_name",
+                "referee.name": "referee_name",
+                "competition_stage.name": "competition_stage_name",
+            }
+        )
         _load_competition(engine, matches_compat, competition_id, season_id)
         _load_matches(engine, matches_compat, competition_id, season_id)
 
@@ -180,16 +179,14 @@ async def ingest_competition_async(
         semaphore = asyncio.Semaphore(concurrency)
         match_ids = matches_df["match_id"].astype(int).tolist()
 
-        tasks = [
-            _process_match(client, semaphore, mid, team_id_map, engine)
-            for mid in match_ids
-        ]
+        tasks = [_process_match(client, semaphore, mid, team_id_map, engine) for mid in match_ids]
 
         results = await tqdm_asyncio.gather(*tasks, desc="Async ingestion")
         successes = sum(results)
         logger.info(
             "Async ingestion complete: %d/%d matches processed",
-            successes, len(match_ids),
+            successes,
+            len(match_ids),
         )
 
 

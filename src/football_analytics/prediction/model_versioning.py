@@ -104,7 +104,7 @@ class PredictionVersionManager:
         report = manager.accuracy_report(from_date=..., to_date=...)
     """
 
-    def __init__(self, engine: Engine | None = None):
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine or get_engine()
 
     def store_prediction(
@@ -228,7 +228,7 @@ class PredictionVersionManager:
             1.0 if actual_outcome == "away" else 0.0,
         ]
         pred_vec = [p_hw, p_d, p_aw]
-        brier = sum((p - a) ** 2 for p, a in zip(pred_vec, actual_vec)) / 3
+        brier = sum((p - a) ** 2 for p, a in zip(pred_vec, actual_vec, strict=False)) / 3
 
         # Update
         update_query = text("""
@@ -250,9 +250,7 @@ class PredictionVersionManager:
                 },
             )
 
-        logger.info(
-            f"Backfilled prediction {pred_id}: {'✓' if correct else '✗'} (Brier: {brier:.3f})"
-        )
+        logger.info(f"Backfilled prediction {pred_id}: {'✓' if correct else '✗'} (Brier: {brier:.3f})")
 
     def accuracy_report(
         self,
@@ -323,9 +321,7 @@ class PredictionVersionManager:
                     "total": len(subset),
                     "correct": int(subset["prediction_correct"].sum()),
                     "accuracy_pct": round(
-                        int(subset["prediction_correct"].sum())
-                        / max(len(subset), 1)
-                        * 100,
+                        int(subset["prediction_correct"].sum()) / max(len(subset), 1) * 100,
                         1,
                     ),
                     "avg_brier": round(float(subset["brier_score"].mean()), 4),
@@ -343,9 +339,7 @@ class PredictionVersionManager:
             by_confidence=by_confidence,
         )
 
-    def get_accuracy_over_time(
-        self, window: int = 20, model_version: str | None = None
-    ) -> list[dict[str, Any]]:
+    def get_accuracy_over_time(self, window: int = 20, model_version: str | None = None) -> list[dict[str, Any]]:
         """Get rolling accuracy over time for dashboard visualisation.
 
         Args:
@@ -380,12 +374,8 @@ class PredictionVersionManager:
             return []
 
         # Compute rolling metrics
-        df["rolling_accuracy"] = (
-            df["prediction_correct"].rolling(window=window, min_periods=5).mean() * 100
-        )
-        df["rolling_brier"] = (
-            df["brier_score"].rolling(window=window, min_periods=5).mean()
-        )
+        df["rolling_accuracy"] = df["prediction_correct"].rolling(window=window, min_periods=5).mean() * 100
+        df["rolling_brier"] = df["brier_score"].rolling(window=window, min_periods=5).mean()
 
         results = []
         for _, row in df.dropna(subset=["rolling_accuracy"]).iterrows():
@@ -406,9 +396,7 @@ class PredictionVersionManager:
 
         # Get max predicted probability for each prediction
         df = df.copy()
-        df["max_prob"] = df[
-            ["predicted_home_win", "predicted_draw", "predicted_away_win"]
-        ].max(axis=1)
+        df["max_prob"] = df[["predicted_home_win", "predicted_draw", "predicted_away_win"]].max(axis=1)
 
         # Bin into deciles
         bins = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -422,9 +410,7 @@ class PredictionVersionManager:
                         "bin_start": bins[i],
                         "bin_end": bins[i + 1],
                         "predicted_avg": round(float(subset["max_prob"].mean()), 3),
-                        "actual_frequency": round(
-                            float(subset["prediction_correct"].mean()), 3
-                        ),
+                        "actual_frequency": round(float(subset["prediction_correct"].mean()), 3),
                         "count": len(subset),
                     }
                 )

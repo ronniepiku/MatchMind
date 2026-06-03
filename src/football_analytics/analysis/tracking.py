@@ -158,9 +158,7 @@ def sync_events_to_tracking(
     """
     # Convert event timestamps to seconds from period start
     events_df = events_df.copy()
-    events_df["event_seconds"] = events_df["minute"] * 60 + events_df["second"].fillna(
-        0
-    )
+    events_df["event_seconds"] = events_df["minute"] * 60 + events_df["second"].fillna(0)
 
     # Match each event to nearest tracking frame
     tracking_times = tracking_df["timestamp"].values
@@ -173,9 +171,7 @@ def sync_events_to_tracking(
             return int(tracking_df.iloc[min_idx]["frame_id"])
         return None
 
-    events_df["tracking_frame_id"] = events_df["event_seconds"].apply(
-        _find_nearest_frame
-    )
+    events_df["tracking_frame_id"] = events_df["event_seconds"].apply(_find_nearest_frame)
 
     matched = events_df["tracking_frame_id"].notna().sum()
     logger.info(
@@ -225,9 +221,7 @@ def calculate_pitch_control(
     xx, yy = np.meshgrid(x_grid, y_grid)
     grid_points = np.stack([xx.ravel(), yy.ravel()], axis=1)  # (G, 2)
 
-    def _team_influence(
-        positions: np.ndarray, velocities: np.ndarray | None
-    ) -> np.ndarray:
+    def _team_influence(positions: np.ndarray, velocities: np.ndarray | None) -> np.ndarray:
         """Calculate total team influence at each grid point."""
         # Distances from each player to each grid point
         # positions: (N, 2), grid_points: (G, 2) → distances: (N, G)
@@ -290,20 +284,14 @@ def calculate_physical_metrics(
     HIGH_INTENSITY = 5.5  # > 19.8 km/h
 
     sprints = np.sum(speeds > SPRINT_THRESHOLD)
-    high_intensity_distance = np.sum(
-        np.sqrt(dx**2 + dy**2)[speeds > HIGH_INTENSITY] if len(speeds) > 1 else 0
-    )
+    high_intensity_distance = np.sum(np.sqrt(dx**2 + dy**2)[speeds > HIGH_INTENSITY] if len(speeds) > 1 else 0)
 
     return {
         "total_distance_m": round(total_distance, 1),
         "total_distance_km": round(total_distance / 1000, 2),
         "max_speed_ms": round(float(np.max(speeds)) if len(speeds) > 0 else 0, 2),
-        "max_speed_kmh": round(
-            float(np.max(speeds)) * 3.6 if len(speeds) > 0 else 0, 1
-        ),
-        "avg_speed_kmh": round(
-            float(np.mean(speeds)) * 3.6 if len(speeds) > 0 else 0, 1
-        ),
+        "max_speed_kmh": round(float(np.max(speeds)) * 3.6 if len(speeds) > 0 else 0, 1),
+        "avg_speed_kmh": round(float(np.mean(speeds)) * 3.6 if len(speeds) > 0 else 0, 1),
         "sprint_count": int(sprints),
         "high_intensity_distance_m": round(float(high_intensity_distance), 1),
     }

@@ -19,21 +19,80 @@ class TestXGModel:
     @pytest.fixture
     def sample_shots(self) -> pd.DataFrame:
         """Sample shot data with known characteristics."""
-        return pd.DataFrame([
-            {"location_x": 112.0, "location_y": 40.0, "shot_outcome": "Goal", "shot_body_part": "Right Foot", "under_pressure": False, "play_pattern": "Regular Play", "minute": 23},
-            {"location_x": 95.0, "location_y": 60.0, "shot_outcome": "Saved", "shot_body_part": "Head", "under_pressure": True, "play_pattern": "Regular Play", "minute": 35},
-            {"location_x": 108.0, "location_y": 38.0, "shot_outcome": "Goal", "shot_body_part": "Left Foot", "under_pressure": False, "play_pattern": "Regular Play", "minute": 67},
-            {"location_x": 85.0, "location_y": 45.0, "shot_outcome": "Off T", "shot_body_part": "Right Foot", "under_pressure": False, "play_pattern": "Regular Play", "minute": 12},
-            {"location_x": 115.0, "location_y": 40.0, "shot_outcome": "Goal", "shot_body_part": "Right Foot", "under_pressure": False, "play_pattern": "From Penalty", "minute": 75},
-            {"location_x": 100.0, "location_y": 30.0, "shot_outcome": "Blocked", "shot_body_part": "Right Foot", "under_pressure": True, "play_pattern": "Regular Play", "minute": 50},
-        ] * 20)  # Multiply for enough training data
+        return pd.DataFrame(
+            [
+                {
+                    "location_x": 112.0,
+                    "location_y": 40.0,
+                    "shot_outcome": "Goal",
+                    "shot_body_part": "Right Foot",
+                    "under_pressure": False,
+                    "play_pattern": "Regular Play",
+                    "minute": 23,
+                },
+                {
+                    "location_x": 95.0,
+                    "location_y": 60.0,
+                    "shot_outcome": "Saved",
+                    "shot_body_part": "Head",
+                    "under_pressure": True,
+                    "play_pattern": "Regular Play",
+                    "minute": 35,
+                },
+                {
+                    "location_x": 108.0,
+                    "location_y": 38.0,
+                    "shot_outcome": "Goal",
+                    "shot_body_part": "Left Foot",
+                    "under_pressure": False,
+                    "play_pattern": "Regular Play",
+                    "minute": 67,
+                },
+                {
+                    "location_x": 85.0,
+                    "location_y": 45.0,
+                    "shot_outcome": "Off T",
+                    "shot_body_part": "Right Foot",
+                    "under_pressure": False,
+                    "play_pattern": "Regular Play",
+                    "minute": 12,
+                },
+                {
+                    "location_x": 115.0,
+                    "location_y": 40.0,
+                    "shot_outcome": "Goal",
+                    "shot_body_part": "Right Foot",
+                    "under_pressure": False,
+                    "play_pattern": "From Penalty",
+                    "minute": 75,
+                },
+                {
+                    "location_x": 100.0,
+                    "location_y": 30.0,
+                    "shot_outcome": "Blocked",
+                    "shot_body_part": "Right Foot",
+                    "under_pressure": True,
+                    "play_pattern": "Regular Play",
+                    "minute": 50,
+                },
+            ]
+            * 20
+        )  # Multiply for enough training data
 
     def test_engineer_features_creates_expected_columns(self, sample_shots: pd.DataFrame) -> None:
         """Feature engineering should create all expected columns."""
         from football_analytics.analysis.xg_model import engineer_features
 
         result = engineer_features(sample_shots)
-        expected_cols = ["distance_to_goal", "goal_angle", "is_header", "under_pressure_flag", "is_penalty", "in_box", "central"]
+        expected_cols = [
+            "distance_to_goal",
+            "goal_angle",
+            "is_header",
+            "under_pressure_flag",
+            "is_penalty",
+            "in_box",
+            "central",
+        ]
         for col in expected_cols:
             assert col in result.columns, f"Missing column: {col}"
 
@@ -86,20 +145,22 @@ class TestPlayerSimilarity:
         """Sample player feature vectors."""
         np.random.seed(42)
         n = 20
-        return pd.DataFrame({
-            "player_id": range(1, n + 1),
-            "player_name": [f"Player_{i}" for i in range(1, n + 1)],
-            "team_id": [1] * 10 + [2] * 10,
-            "team_name": ["Team A"] * 10 + ["Team B"] * 10,
-            "appearances": np.random.randint(5, 20, n),
-            "xg_per_match": np.random.uniform(0, 0.8, n),
-            "xa_per_match": np.random.uniform(0, 0.5, n),
-            "passes_per_match": np.random.uniform(20, 60, n),
-            "pass_accuracy": np.random.uniform(0.6, 0.95, n),
-            "dribbles_per_match": np.random.uniform(0, 4, n),
-            "pressures_per_match": np.random.uniform(5, 25, n),
-            "tackles_per_match": np.random.uniform(0, 5, n),
-        })
+        return pd.DataFrame(
+            {
+                "player_id": range(1, n + 1),
+                "player_name": [f"Player_{i}" for i in range(1, n + 1)],
+                "team_id": [1] * 10 + [2] * 10,
+                "team_name": ["Team A"] * 10 + ["Team B"] * 10,
+                "appearances": np.random.randint(5, 20, n),
+                "xg_per_match": np.random.uniform(0, 0.8, n),
+                "xa_per_match": np.random.uniform(0, 0.5, n),
+                "passes_per_match": np.random.uniform(20, 60, n),
+                "pass_accuracy": np.random.uniform(0.6, 0.95, n),
+                "dribbles_per_match": np.random.uniform(0, 4, n),
+                "pressures_per_match": np.random.uniform(5, 25, n),
+                "tackles_per_match": np.random.uniform(0, 5, n),
+            }
+        )
 
     def test_find_similar_returns_correct_count(self, player_vectors: pd.DataFrame) -> None:
         """Should return the requested number of similar players."""
@@ -232,11 +293,13 @@ class TestTrackingData:
         from football_analytics.analysis.tracking import calculate_physical_metrics
 
         # Player moves 1m/frame at 25fps = 25 m/s (very fast, but for testing)
-        tracking = pd.DataFrame({
-            "timestamp": np.arange(0, 4, 0.04),  # 100 frames at 25fps
-            "x": np.linspace(0, 50, 100),
-            "y": np.zeros(100),
-        })
+        tracking = pd.DataFrame(
+            {
+                "timestamp": np.arange(0, 4, 0.04),  # 100 frames at 25fps
+                "x": np.linspace(0, 50, 100),
+                "y": np.zeros(100),
+            }
+        )
 
         metrics = calculate_physical_metrics(tracking, fps=25)
         assert metrics["total_distance_m"] == pytest.approx(50.0, abs=1.0)
@@ -246,11 +309,20 @@ class TestTrackingData:
         """Team shape calculation should return valid metrics."""
         from football_analytics.analysis.tracking import calculate_team_shape
 
-        positions = np.array([
-            [20, 30], [20, 38], [22, 34], [21, 42],  # Back 4
-            [40, 25], [38, 34], [42, 45],             # Midfield
-            [55, 20], [60, 40], [58, 55],             # Attack
-        ])
+        positions = np.array(
+            [
+                [20, 30],
+                [20, 38],
+                [22, 34],
+                [21, 42],  # Back 4
+                [40, 25],
+                [38, 34],
+                [42, 45],  # Midfield
+                [55, 20],
+                [60, 40],
+                [58, 55],  # Attack
+            ]
+        )
 
         shape = calculate_team_shape(positions)
         assert shape["width"] > 0

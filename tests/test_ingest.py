@@ -8,7 +8,6 @@ import pytest
 from football_analytics.ingest import (
     _extract_players_from_events,
     normalize_events,
-    normalize_lineups,
 )
 
 # =============================================================================
@@ -19,67 +18,71 @@ from football_analytics.ingest import (
 @pytest.fixture
 def sample_raw_events() -> pd.DataFrame:
     """Minimal StatsBomb-like event DataFrame for testing."""
-    return pd.DataFrame([
-        {
-            "id": "abc-123",
-            "type": "Shot",
-            "team": "Argentina",
-            "player": "Lionel Messi",
-            "player_id": 5503,
-            "period": 1,
-            "timestamp": "00:23:15.123",
-            "minute": 23,
-            "second": 15,
-            "possession": 12,
-            "possession_team": "Argentina",
-            "play_pattern": "From Goal Kick",
-            "location": [108.5, 34.2],
-            "duration": 1.2,
-            "under_pressure": True,
-            "shot_statsbomb_xg": 0.45,
-            "shot_outcome": "Goal",
-        },
-        {
-            "id": "def-456",
-            "type": "Pass",
-            "team": "Argentina",
-            "player": "Ángel Di María",
-            "player_id": 6909,
-            "period": 1,
-            "timestamp": "00:22:50.000",
-            "minute": 22,
-            "second": 50,
-            "possession": 12,
-            "possession_team": "Argentina",
-            "play_pattern": "From Goal Kick",
-            "location": [75.0, 30.0],
-            "duration": 0.8,
-            "under_pressure": False,
-            "pass_length": 25.3,
-            "pass_angle": 0.78,
-            "pass_outcome": None,
-        },
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "id": "abc-123",
+                "type": "Shot",
+                "team": "Argentina",
+                "player": "Lionel Messi",
+                "player_id": 5503,
+                "period": 1,
+                "timestamp": "00:23:15.123",
+                "minute": 23,
+                "second": 15,
+                "possession": 12,
+                "possession_team": "Argentina",
+                "play_pattern": "From Goal Kick",
+                "location": [108.5, 34.2],
+                "duration": 1.2,
+                "under_pressure": True,
+                "shot_statsbomb_xg": 0.45,
+                "shot_outcome": "Goal",
+            },
+            {
+                "id": "def-456",
+                "type": "Pass",
+                "team": "Argentina",
+                "player": "Ángel Di María",
+                "player_id": 6909,
+                "period": 1,
+                "timestamp": "00:22:50.000",
+                "minute": 22,
+                "second": 50,
+                "possession": 12,
+                "possession_team": "Argentina",
+                "play_pattern": "From Goal Kick",
+                "location": [75.0, 30.0],
+                "duration": 0.8,
+                "under_pressure": False,
+                "pass_length": 25.3,
+                "pass_angle": 0.78,
+                "pass_outcome": None,
+            },
+        ]
+    )
 
 
 @pytest.fixture
 def sample_lineups() -> dict[str, pd.DataFrame]:
     """Minimal lineup data."""
     return {
-        "Argentina": pd.DataFrame([
-            {
-                "player_id": 5503,
-                "player_name": "Lionel Messi",
-                "jersey_number": 10,
-                "positions": [{"position": "Right Wing", "from": "0:00:00"}],
-            },
-            {
-                "player_id": 6909,
-                "player_name": "Ángel Di María",
-                "jersey_number": 11,
-                "positions": [{"position": "Left Wing", "from": "0:00:00"}],
-            },
-        ]),
+        "Argentina": pd.DataFrame(
+            [
+                {
+                    "player_id": 5503,
+                    "player_name": "Lionel Messi",
+                    "jersey_number": 10,
+                    "positions": [{"position": "Right Wing", "from": "0:00:00"}],
+                },
+                {
+                    "player_id": 6909,
+                    "player_name": "Ángel Di María",
+                    "jersey_number": 11,
+                    "positions": [{"position": "Left Wing", "from": "0:00:00"}],
+                },
+            ]
+        ),
     }
 
 
@@ -110,15 +113,19 @@ class TestNormalizeEvents:
 
     def test_handles_missing_location(self) -> None:
         """Events without location should get None coordinates."""
-        df = pd.DataFrame([{
-            "id": "xxx-999",
-            "type": "Half Start",
-            "team": "Argentina",
-            "period": 1,
-            "timestamp": "00:00:00",
-            "minute": 0,
-            "second": 0,
-        }])
+        df = pd.DataFrame(
+            [
+                {
+                    "id": "xxx-999",
+                    "type": "Half Start",
+                    "team": "Argentina",
+                    "period": 1,
+                    "timestamp": "00:00:00",
+                    "minute": 0,
+                    "second": 0,
+                }
+            ]
+        )
         result = normalize_events(df, match_id=1)
         assert pd.isna(result["location_x"].iloc[0])
 
@@ -127,7 +134,6 @@ class TestNormalizeEvents:
         result = normalize_events(sample_raw_events, match_id=1)
         assert result["counterpress"].dtype == bool
         assert not result["counterpress"].iloc[0]
-
 
 
 # =============================================================================

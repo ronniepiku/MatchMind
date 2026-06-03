@@ -91,9 +91,7 @@ def extract_possession_chains(events_df: pd.DataFrame) -> list[PossessionChain]:
         raise ValueError(f"Missing required columns: {missing}")
 
     chains = []
-    grouped = events_df.sort_values(["match_id", "minute", "second"]).groupby(
-        ["match_id", "possession"]
-    )
+    grouped = events_df.sort_values(["match_id", "minute", "second"]).groupby(["match_id", "possession"])
 
     for (match_id, poss_num), group in grouped:
         if len(group) < 2:
@@ -180,9 +178,12 @@ def _classify_outcome(events: pd.DataFrame) -> ChainOutcome:
         return ChainOutcome.FOUL_WON
 
     # Check for failed passes (turnovers)
-    if "pass_outcome" in events.columns:
-        if events.iloc[-1].get("pass_outcome") in ("Incomplete", "Out", "Offside"):
-            return ChainOutcome.TURNOVER
+    if "pass_outcome" in events.columns and events.iloc[-1].get("pass_outcome") in (
+        "Incomplete",
+        "Out",
+        "Offside",
+    ):
+        return ChainOutcome.TURNOVER
 
     return ChainOutcome.OTHER
 
@@ -223,10 +224,13 @@ def _classify_style(events: pd.DataFrame, chain: PossessionChain) -> BuildUpStyl
             return BuildUpStyle.CENTRAL_PENETRATION
 
     # Short passing (many passes, low avg length)
-    if chain.num_passes >= 5:
-        if "pass_length" in passes.columns and passes["pass_length"].notna().any():
-            if passes["pass_length"].mean() < 18:
-                return BuildUpStyle.SHORT_PASSING
+    if (
+        chain.num_passes >= 5
+        and "pass_length" in passes.columns
+        and passes["pass_length"].notna().any()
+        and passes["pass_length"].mean() < 18
+    ):
+        return BuildUpStyle.SHORT_PASSING
 
     return BuildUpStyle.MIXED
 
@@ -242,24 +246,26 @@ def chains_to_dataframe(chains: list[PossessionChain]) -> pd.DataFrame:
     """
     records = []
     for c in chains:
-        records.append({
-            "match_id": c.match_id,
-            "possession_number": c.possession_number,
-            "team_id": c.team_id,
-            "start_x": c.start_x,
-            "start_y": c.start_y,
-            "end_x": c.end_x,
-            "end_y": c.end_y,
-            "duration_seconds": c.duration_seconds,
-            "num_events": c.num_events,
-            "num_passes": c.num_passes,
-            "progressive_distance": c.progressive_distance,
-            "outcome": c.outcome.value,
-            "style": c.style.value,
-            "xg_generated": c.xg_generated,
-            "entered_final_third": c.entered_final_third,
-            "entered_box": c.entered_box,
-        })
+        records.append(
+            {
+                "match_id": c.match_id,
+                "possession_number": c.possession_number,
+                "team_id": c.team_id,
+                "start_x": c.start_x,
+                "start_y": c.start_y,
+                "end_x": c.end_x,
+                "end_y": c.end_y,
+                "duration_seconds": c.duration_seconds,
+                "num_events": c.num_events,
+                "num_passes": c.num_passes,
+                "progressive_distance": c.progressive_distance,
+                "outcome": c.outcome.value,
+                "style": c.style.value,
+                "xg_generated": c.xg_generated,
+                "entered_final_third": c.entered_final_third,
+                "entered_box": c.entered_box,
+            }
+        )
     return pd.DataFrame(records)
 
 
@@ -282,9 +288,7 @@ def compute_team_possession_profile(chains_df: pd.DataFrame, team_id: int) -> di
     style_dist = team_chains["style"].value_counts(normalize=True).to_dict()
     outcome_dist = team_chains["outcome"].value_counts(normalize=True).to_dict()
 
-    dangerous_chains = team_chains[
-        team_chains["outcome"].isin(["goal", "shot", "shot_on_target", "key_pass"])
-    ]
+    dangerous_chains = team_chains[team_chains["outcome"].isin(["goal", "shot", "shot_on_target", "key_pass"])]
 
     return {
         "team_id": team_id,
@@ -303,9 +307,7 @@ def compute_team_possession_profile(chains_df: pd.DataFrame, team_id: int) -> di
     }
 
 
-def compare_possession_styles(
-    chains_df: pd.DataFrame, team_id_a: int, team_id_b: int
-) -> pd.DataFrame:
+def compare_possession_styles(chains_df: pd.DataFrame, team_id_a: int, team_id_b: int) -> pd.DataFrame:
     """Compare possession profiles between two teams.
 
     Args:
@@ -321,11 +323,13 @@ def compare_possession_styles(
 
     # Extract scalar metrics (exclude distributions)
     scalar_keys = [k for k in profile_a if not isinstance(profile_a[k], dict)]
-    comparison = pd.DataFrame({
-        "metric": scalar_keys,
-        "team_a": [profile_a[k] for k in scalar_keys],
-        "team_b": [profile_b[k] for k in scalar_keys],
-    })
+    comparison = pd.DataFrame(
+        {
+            "metric": scalar_keys,
+            "team_a": [profile_a[k] for k in scalar_keys],
+            "team_b": [profile_b[k] for k in scalar_keys],
+        }
+    )
     return comparison
 
 
@@ -345,7 +349,8 @@ def identify_dangerous_sequences(
         Filtered list of dangerous possession chains.
     """
     dangerous = [
-        c for c in chains
+        c
+        for c in chains
         if (c.xg_generated >= min_xg or c.outcome in (ChainOutcome.GOAL, ChainOutcome.SHOT_ON_TARGET))
         and c.progressive_distance >= min_progressive_distance
     ]
@@ -365,8 +370,9 @@ def compute_transition_metrics(chains: list[PossessionChain]) -> dict[str, Any]:
         Dictionary with transition vs build-up comparison.
     """
     counters = [c for c in chains if c.style == BuildUpStyle.COUNTER_ATTACK]
-    patient = [c for c in chains if c.style in (BuildUpStyle.SHORT_PASSING, BuildUpStyle.MIXED)
-               and c.duration_seconds > 15]
+    patient = [
+        c for c in chains if c.style in (BuildUpStyle.SHORT_PASSING, BuildUpStyle.MIXED) and c.duration_seconds > 15
+    ]
 
     def _chain_stats(chain_list: list[PossessionChain]) -> dict[str, float]:
         if not chain_list:

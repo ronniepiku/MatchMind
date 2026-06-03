@@ -15,12 +15,11 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 
-import numpy as np
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from football_analytics.analysis.simulation import MatchSimulationResult, simulate_match
+from football_analytics.analysis.simulation import simulate_match
 from football_analytics.db import get_engine
 from football_analytics.prediction.team_rating import TeamRating, TeamRatingEngine
 
@@ -138,7 +137,7 @@ class MatchPredictor:
         engine: Engine | None = None,
         rating_engine: TeamRatingEngine | None = None,
         n_simulations: int = 10_000,
-    ):
+    ) -> None:
         self._engine = engine or get_engine()
         self._rating_engine = rating_engine or TeamRatingEngine(engine=self._engine)
         self._n_simulations = n_simulations
@@ -260,17 +259,13 @@ class MatchPredictor:
 
         return predictions
 
-    def _get_or_compute_ratings(
-        self, competition_id: int | None
-    ) -> dict[int, TeamRating]:
+    def _get_or_compute_ratings(self, competition_id: int | None) -> dict[int, TeamRating]:
         """Get cached ratings or compute fresh ones."""
         if self._ratings_cache is not None:
             return self._ratings_cache
 
         comp_ids = [competition_id] if competition_id else None
-        self._ratings_cache = self._rating_engine.compute_ratings(
-            competition_ids=comp_ids
-        )
+        self._ratings_cache = self._rating_engine.compute_ratings(competition_ids=comp_ids)
         return self._ratings_cache
 
     def _derive_expected_xg(
@@ -294,12 +289,8 @@ class MatchPredictor:
         if rating_a and rating_b:
             # Interaction model: attacker strength * (avg_defense / opponent_defense)
             avg_defense = 1.2  # League average xG conceded
-            xg_a = rating_a.offensive_strength * (
-                avg_defense / max(rating_b.defensive_strength, 0.3)
-            )
-            xg_b = rating_b.offensive_strength * (
-                avg_defense / max(rating_a.defensive_strength, 0.3)
-            )
+            xg_a = rating_a.offensive_strength * (avg_defense / max(rating_b.defensive_strength, 0.3))
+            xg_b = rating_b.offensive_strength * (avg_defense / max(rating_a.defensive_strength, 0.3))
         elif rating_a:
             xg_a = rating_a.offensive_strength
             xg_b = default_xg
@@ -361,9 +352,7 @@ class MatchPredictor:
 
         try:
             with self._engine.connect() as conn:
-                df = pd.read_sql(
-                    query, conn, params={"team_a": team_a_id, "team_b": team_b_id}
-                )
+                df = pd.read_sql(query, conn, params={"team_a": team_a_id, "team_b": team_b_id})
         except Exception:
             return None
 
@@ -400,16 +389,10 @@ class MatchPredictor:
             last_meeting=pd.to_datetime(df["match_date"].iloc[0]).date(),
         )
 
-    def _assess_confidence(
-        self, rating_a: TeamRating | None, rating_b: TeamRating | None
-    ) -> ConfidenceLevel:
+    def _assess_confidence(self, rating_a: TeamRating | None, rating_b: TeamRating | None) -> ConfidenceLevel:
         """Assess prediction confidence based on data availability."""
         if rating_a is None or rating_b is None:
-            return (
-                ConfidenceLevel.LOW
-                if (rating_a or rating_b)
-                else ConfidenceLevel.INSUFFICIENT
-            )
+            return ConfidenceLevel.LOW if (rating_a or rating_b) else ConfidenceLevel.INSUFFICIENT
 
         if rating_a.confidence == "high" and rating_b.confidence == "high":
             return ConfidenceLevel.HIGH
@@ -455,9 +438,7 @@ class MatchPredictor:
             # Pressing
             press_diff = rating_a.pressing_intensity - rating_b.pressing_intensity
             if abs(press_diff) > 5:
-                aggressive = (
-                    rating_a.team_name if press_diff > 0 else rating_b.team_name
-                )
+                aggressive = rating_a.team_name if press_diff > 0 else rating_b.team_name
                 factors.append(
                     PredictionFactor(
                         dimension="pressing_intensity",
@@ -477,15 +458,14 @@ class MatchPredictor:
             )
 
         # Head-to-head
-        if h2h and h2h.matches_played >= 3:
-            if h2h.team_a_wins > h2h.team_b_wins * 1.5:
-                factors.append(
-                    PredictionFactor(
-                        dimension="head_to_head",
-                        description=f"Strong historical record in this fixture ({h2h.team_a_wins}W-{h2h.draws}D-{h2h.team_b_wins}L)",
-                        impact=0.05,
-                    )
+        if h2h and h2h.matches_played >= 3 and h2h.team_a_wins > h2h.team_b_wins * 1.5:
+            factors.append(
+                PredictionFactor(
+                    dimension="head_to_head",
+                    description=f"Strong historical record in this fixture ({h2h.team_a_wins}W-{h2h.draws}D-{h2h.team_b_wins}L)",
+                    impact=0.05,
                 )
+            )
 
         return factors
 

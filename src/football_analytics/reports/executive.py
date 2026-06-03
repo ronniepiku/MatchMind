@@ -43,9 +43,7 @@ class RAGStatus(Enum):
     GREEN = "green"
 
     @classmethod
-    def from_threshold(
-        cls, value: float, green_min: float, amber_min: float
-    ) -> RAGStatus:
+    def from_threshold(cls, value: float, green_min: float, amber_min: float) -> RAGStatus:
         """Determine RAG status from value and thresholds.
 
         Args:
@@ -197,7 +195,7 @@ class ExecutiveReportGenerator:
         assessment = gen.player_assessment(player_id=42)
     """
 
-    def __init__(self, engine: Engine | None = None):
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine or get_engine()
 
     def weekly_briefing(
@@ -227,14 +225,10 @@ class ExecutiveReportGenerator:
         week_difficulty = self._assess_difficulty(upcoming)
 
         # Generate headline
-        headline, key_points = self._generate_headline(
-            competitions, squad_metrics, upcoming
-        )
+        headline, key_points = self._generate_headline(competitions, squad_metrics, upcoming)
 
         # Recommendations
-        recommendations = self._generate_recommendations(
-            competitions, squad_metrics, week_difficulty
-        )
+        recommendations = self._generate_recommendations(competitions, squad_metrics, week_difficulty)
 
         period_end = date.today()
         period_start = period_end - timedelta(days=7)
@@ -278,9 +272,7 @@ class ExecutiveReportGenerator:
         trajectory_narrative = trend.get("narrative", "")
 
         # Recommendation logic
-        recommendation, rationale = self._derive_player_recommendation(
-            kpis, trajectory, info
-        )
+        recommendation, rationale = self._derive_player_recommendation(kpis, trajectory, info)
 
         return PlayerAssessment(
             player_id=player_id,
@@ -315,8 +307,8 @@ class ExecutiveReportGenerator:
         wins = sum(1 for r in results if r["result"] == "W")
         draws = sum(1 for r in results if r["result"] == "D")
         points = wins * 3 + draws
-        gf = sum(r["goals_for"] for r in results)
-        ga = sum(r["goals_against"] for r in results)
+        sum(r["goals_for"] for r in results)
+        sum(r["goals_against"] for r in results)
         xg_for = sum(r.get("xg_for", 0.0) for r in results)
         xg_against = sum(r.get("xg_against", 0.0) for r in results)
 
@@ -324,15 +316,13 @@ class ExecutiveReportGenerator:
         expected_pts = self._compute_expected_points(results)
 
         # Targets
-        targets = self._compute_targets(
-            team_id, competition_id, season_id, points, matches
-        )
+        targets = self._compute_targets(team_id, competition_id, season_id, points, matches)
 
         # Form assessment
         last_5 = results[-5:] if len(results) >= 5 else results
-        recent_ppg = sum(
-            3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in last_5
-        ) / max(len(last_5), 1)
+        recent_ppg = sum(3 if r["result"] == "W" else 1 if r["result"] == "D" else 0 for r in last_5) / max(
+            len(last_5), 1
+        )
         if recent_ppg >= 2.2:
             form_rag = RAGStatus.GREEN
             form_narr = "Excellent recent form — on an upward trajectory."
@@ -346,13 +336,9 @@ class ExecutiveReportGenerator:
         # Risks
         risks = []
         if xg_for < xg_against:
-            risks.append(
-                "Underlying performance (Expected Goals) is negative — results may regress."
-            )
+            risks.append("Underlying performance (Expected Goals) is negative — results may regress.")
         if points > expected_pts + 4:
-            risks.append(
-                "Overperforming Expected Goals — current points tally may not be sustainable."
-            )
+            risks.append("Overperforming Expected Goals — current points tally may not be sustainable.")
 
         comp_name = self._get_competition_name(competition_id, season_id)
 
@@ -419,38 +405,22 @@ class ExecutiveReportGenerator:
             RAGMetric(
                 name="Expected Goals Created",
                 value=round(xg, 2),
-                rag=(
-                    RAGStatus.GREEN
-                    if xg > 1.5
-                    else RAGStatus.AMBER if xg > 0.8 else RAGStatus.RED
-                ),
+                rag=(RAGStatus.GREEN if xg > 1.5 else RAGStatus.AMBER if xg > 0.8 else RAGStatus.RED),
             ),
             RAGMetric(
                 name="Expected Goals Conceded",
                 value=round(opp_xg, 2),
-                rag=(
-                    RAGStatus.GREEN
-                    if opp_xg < 1.0
-                    else RAGStatus.AMBER if opp_xg < 1.5 else RAGStatus.RED
-                ),
+                rag=(RAGStatus.GREEN if opp_xg < 1.0 else RAGStatus.AMBER if opp_xg < 1.5 else RAGStatus.RED),
             ),
             RAGMetric(
                 name="Shots on Target",
                 value=stats.get("shots_on_target", 0),
-                rag=(
-                    RAGStatus.GREEN
-                    if stats.get("shots_on_target", 0) >= 5
-                    else RAGStatus.AMBER
-                ),
+                rag=(RAGStatus.GREEN if stats.get("shots_on_target", 0) >= 5 else RAGStatus.AMBER),
             ),
             RAGMetric(
                 name="Passing Accuracy",
                 value=f"{stats.get('pass_accuracy', 0):.0f}%",
-                rag=(
-                    RAGStatus.GREEN
-                    if stats.get("pass_accuracy", 0) > 85
-                    else RAGStatus.AMBER
-                ),
+                rag=(RAGStatus.GREEN if stats.get("pass_accuracy", 0) > 85 else RAGStatus.AMBER),
             ),
         ]
 
@@ -463,13 +433,9 @@ class ExecutiveReportGenerator:
         if stats.get("pressures", 0) > 180:
             summary_points.append("High-intensity pressing was sustained throughout.")
         if our_goals > their_goals:
-            summary_points.append(
-                "Three points secured — positive contribution to campaign."
-            )
+            summary_points.append("Three points secured — positive contribution to campaign.")
         elif our_goals < their_goals:
-            summary_points.append(
-                "Points dropped — requires tactical review before next fixture."
-            )
+            summary_points.append("Points dropped — requires tactical review before next fixture.")
 
         return PostMatchExecutiveSummary(
             match_date=str(match.get("match_date", "")),
@@ -485,9 +451,7 @@ class ExecutiveReportGenerator:
 
     # ─── Internal Helpers ──────────────────────────────────────────────────
 
-    def _get_competition_standings(
-        self, team_id: int, season_id: int | None
-    ) -> list[dict[str, Any]]:
+    def _get_competition_standings(self, team_id: int, season_id: int | None) -> list[dict[str, Any]]:
         """Get our position in each active competition."""
         query = text("""
             SELECT m.competition_id, c.competition_name,
@@ -518,8 +482,7 @@ class ExecutiveReportGenerator:
                 results.append(
                     {
                         "competition_id": int(row["competition_id"]),
-                        "competition_name": row.get("competition_name")
-                        or f"Comp {row['competition_id']}",
+                        "competition_name": row.get("competition_name") or f"Comp {row['competition_id']}",
                         "played": int(row["played"]),
                         "wins": w,
                         "draws": d,
@@ -556,11 +519,7 @@ class ExecutiveReportGenerator:
 
         try:
             with self._engine.connect() as conn:
-                result = (
-                    conn.execute(query, {"tid": team_id, "sid": season_id})
-                    .mappings()
-                    .fetchone()
-                )
+                result = conn.execute(query, {"tid": team_id, "sid": season_id}).mappings().fetchone()
 
             if not result:
                 return []
@@ -592,9 +551,7 @@ class ExecutiveReportGenerator:
         except Exception:
             return []
 
-    def _get_upcoming_fixtures(
-        self, team_id: int, days_ahead: int
-    ) -> list[dict[str, Any]]:
+    def _get_upcoming_fixtures(self, team_id: int, days_ahead: int) -> list[dict[str, Any]]:
         """Get upcoming fixtures from the fixture table."""
         query = text("""
             SELECT f.fixture_id, f.match_date, f.home_team_id, f.away_team_id,
@@ -611,18 +568,12 @@ class ExecutiveReportGenerator:
 
         try:
             with self._engine.connect() as conn:
-                df = pd.read_sql(
-                    query, conn, params={"tid": team_id, "days": days_ahead}
-                )
+                df = pd.read_sql(query, conn, params={"tid": team_id, "days": days_ahead})
             return [
                 {
                     "fixture_id": int(row["fixture_id"]),
                     "match_date": str(row["match_date"]),
-                    "opponent": (
-                        row["away_team_name"]
-                        if row["home_team_id"] == team_id
-                        else row["home_team_name"]
-                    ),
+                    "opponent": (row["away_team_name"] if row["home_team_id"] == team_id else row["home_team_name"]),
                     "venue": "Home" if row["home_team_id"] == team_id else "Away",
                     "competition": row.get("competition_name") or "",
                 }
@@ -672,13 +623,9 @@ class ExecutiveReportGenerator:
         # Health flags
         red_metrics = [m for m in squad_metrics if m.rag == RAGStatus.RED]
         if red_metrics:
-            points_list.append(
-                f"Concern: {red_metrics[0].name} is below acceptable threshold."
-            )
+            points_list.append(f"Concern: {red_metrics[0].name} is below acceptable threshold.")
 
-        headline = (
-            points_list[0] if points_list else "No data available for this period."
-        )
+        headline = points_list[0] if points_list else "No data available for this period."
         return headline, points_list
 
     def _generate_recommendations(
@@ -690,25 +637,17 @@ class ExecutiveReportGenerator:
         """Generate actionable recommendations."""
         recs = []
         if difficulty == RAGStatus.RED:
-            recs.append(
-                "Congested fixture schedule — consider squad rotation for midweek."
-            )
+            recs.append("Congested fixture schedule — consider squad rotation for midweek.")
 
         red_metrics = [m for m in squad_metrics if m.rag == RAGStatus.RED]
         for m in red_metrics:
             if "conceded" in m.name.lower():
-                recs.append(
-                    "Defensive performance requires tactical intervention — review shape and personnel."
-                )
+                recs.append("Defensive performance requires tactical intervention — review shape and personnel.")
             elif "created" in m.name.lower():
-                recs.append(
-                    "Chance creation below standard — assess attacking patterns in training."
-                )
+                recs.append("Chance creation below standard — assess attacking patterns in training.")
 
         if not recs:
-            recs.append(
-                "Continue current approach — performance metrics are within acceptable range."
-            )
+            recs.append("Continue current approach — performance metrics are within acceptable range.")
 
         return recs
 
@@ -722,9 +661,7 @@ class ExecutiveReportGenerator:
         except Exception:
             return {}
 
-    def _get_player_season_stats(
-        self, player_id: int, season_id: int | None
-    ) -> dict[str, Any]:
+    def _get_player_season_stats(self, player_id: int, season_id: int | None) -> dict[str, Any]:
         """Get aggregated player stats."""
         conditions = ["e.player_id = :pid"]
         params: dict[str, Any] = {"pid": player_id}
@@ -759,9 +696,7 @@ class ExecutiveReportGenerator:
         except Exception:
             return {}
 
-    def _compute_player_trend(
-        self, player_id: int, season_id: int | None
-    ) -> dict[str, Any]:
+    def _compute_player_trend(self, player_id: int, season_id: int | None) -> dict[str, Any]:
         """Compute player performance trend."""
         # Simplified: compare first half vs second half of season
         return {
@@ -769,9 +704,7 @@ class ExecutiveReportGenerator:
             "narrative": "Performance has been consistent.",
         }
 
-    def _build_player_kpis(
-        self, stats: dict[str, Any], matches: int, position: str
-    ) -> list[RAGMetric]:
+    def _build_player_kpis(self, stats: dict[str, Any], matches: int, position: str) -> list[RAGMetric]:
         """Build position-appropriate KPIs for player assessment."""
         kpis = []
 
@@ -838,9 +771,7 @@ class ExecutiveReportGenerator:
 
         if green_count >= 3 and trajectory == TrendDirection.IMPROVING:
             rec = "Extend"
-            rationale.append(
-                "Strong performance across key metrics with improving trajectory."
-            )
+            rationale.append("Strong performance across key metrics with improving trajectory.")
         elif green_count >= 2:
             rec = "Extend"
             rationale.append("Performing above threshold on majority of KPIs.")
@@ -856,9 +787,7 @@ class ExecutiveReportGenerator:
 
         return rec, rationale
 
-    def _get_team_results(
-        self, team_id: int, competition_id: int, season_id: int
-    ) -> list[dict[str, Any]]:
+    def _get_team_results(self, team_id: int, competition_id: int, season_id: int) -> list[dict[str, Any]]:
         """Get all match results for team in competition."""
         query = text("""
             SELECT m.match_id, m.match_date, m.home_team_id, m.home_score, m.away_score,
@@ -931,9 +860,7 @@ class ExecutiveReportGenerator:
                 "target": "Title (90+ points)",
                 "projected_points": round(projected),
                 "on_track": projected >= 90,
-                "rag": (
-                    RAGStatus.GREEN.value if projected >= 90 else RAGStatus.RED.value
-                ),
+                "rag": (RAGStatus.GREEN.value if projected >= 90 else RAGStatus.RED.value),
             },
             {
                 "target": "Top 4 (70+ points)",
@@ -942,20 +869,14 @@ class ExecutiveReportGenerator:
                 "rag": (
                     RAGStatus.GREEN.value
                     if projected >= 70
-                    else (
-                        RAGStatus.AMBER.value
-                        if projected >= 60
-                        else RAGStatus.RED.value
-                    )
+                    else (RAGStatus.AMBER.value if projected >= 60 else RAGStatus.RED.value)
                 ),
             },
             {
                 "target": "Survival (40+ points)",
                 "projected_points": round(projected),
                 "on_track": projected >= 40,
-                "rag": (
-                    RAGStatus.GREEN.value if projected >= 40 else RAGStatus.RED.value
-                ),
+                "rag": (RAGStatus.GREEN.value if projected >= 40 else RAGStatus.RED.value),
             },
         ]
         return targets
@@ -967,9 +888,7 @@ class ExecutiveReportGenerator:
         )
         try:
             with self._engine.connect() as conn:
-                result = conn.execute(
-                    query, {"cid": competition_id, "sid": season_id}
-                ).fetchone()
+                result = conn.execute(query, {"cid": competition_id, "sid": season_id}).fetchone()
             return result[0] if result else f"Competition {competition_id}"
         except Exception:
             return f"Competition {competition_id}"
@@ -1008,11 +927,7 @@ class ExecutiveReportGenerator:
         """)
         try:
             with self._engine.connect() as conn:
-                result = (
-                    conn.execute(query, {"mid": match_id, "tid": team_id})
-                    .mappings()
-                    .fetchone()
-                )
+                result = conn.execute(query, {"mid": match_id, "tid": team_id}).mappings().fetchone()
             return dict(result) if result else {}
         except Exception:
             return {}

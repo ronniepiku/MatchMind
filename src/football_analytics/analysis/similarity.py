@@ -63,43 +63,76 @@ POSITION_GROUPS: dict[str, str] = {
 FEATURE_SETS: dict[str, list[str]] = {
     "GK": ["saves_per_match", "pass_accuracy", "long_passes_per_match"],
     "CB": [
-        "tackles_per_match", "interceptions_per_match", "pressures_per_match",
-        "passes_per_match", "pass_accuracy", "aerial_wins_per_match",
+        "tackles_per_match",
+        "interceptions_per_match",
+        "pressures_per_match",
+        "passes_per_match",
+        "pass_accuracy",
+        "aerial_wins_per_match",
     ],
     "FB": [
-        "tackles_per_match", "interceptions_per_match", "pressures_per_match",
-        "passes_per_match", "key_passes_per_match", "dribbles_per_match",
+        "tackles_per_match",
+        "interceptions_per_match",
+        "pressures_per_match",
+        "passes_per_match",
+        "key_passes_per_match",
+        "dribbles_per_match",
         "crosses_per_match",
     ],
     "DM": [
-        "tackles_per_match", "interceptions_per_match", "pressures_per_match",
-        "passes_per_match", "pass_accuracy", "progressive_passes_per_match",
+        "tackles_per_match",
+        "interceptions_per_match",
+        "pressures_per_match",
+        "passes_per_match",
+        "pass_accuracy",
+        "progressive_passes_per_match",
     ],
     "CM": [
-        "passes_per_match", "pass_accuracy", "key_passes_per_match",
-        "progressive_passes_per_match", "pressures_per_match",
-        "dribbles_per_match", "xa_per_match",
+        "passes_per_match",
+        "pass_accuracy",
+        "key_passes_per_match",
+        "progressive_passes_per_match",
+        "pressures_per_match",
+        "dribbles_per_match",
+        "xa_per_match",
     ],
     "AM": [
-        "xa_per_match", "xg_per_match", "key_passes_per_match",
-        "dribbles_per_match", "shots_per_match", "passes_per_match",
+        "xa_per_match",
+        "xg_per_match",
+        "key_passes_per_match",
+        "dribbles_per_match",
+        "shots_per_match",
+        "passes_per_match",
     ],
     "W": [
-        "xg_per_match", "xa_per_match", "dribbles_per_match",
-        "key_passes_per_match", "shots_per_match", "crosses_per_match",
+        "xg_per_match",
+        "xa_per_match",
+        "dribbles_per_match",
+        "key_passes_per_match",
+        "shots_per_match",
+        "crosses_per_match",
         "pressures_per_match",
     ],
     "FW": [
-        "xg_per_match", "shots_per_match", "xa_per_match",
-        "key_passes_per_match", "dribbles_per_match", "pressures_per_match",
+        "xg_per_match",
+        "shots_per_match",
+        "xa_per_match",
+        "key_passes_per_match",
+        "dribbles_per_match",
+        "pressures_per_match",
         "aerial_wins_per_match",
     ],
 }
 
 # Default feature set for unknown positions
 DEFAULT_FEATURES = [
-    "xg_per_match", "xa_per_match", "passes_per_match", "pass_accuracy",
-    "dribbles_per_match", "pressures_per_match", "tackles_per_match",
+    "xg_per_match",
+    "xa_per_match",
+    "passes_per_match",
+    "pass_accuracy",
+    "dribbles_per_match",
+    "pressures_per_match",
+    "tackles_per_match",
 ]
 
 
@@ -243,13 +276,15 @@ def find_similar_players(
     results = []
     for idx, sim_score in similarities[:top_n]:
         row = player_vectors.iloc[idx]
-        results.append({
-            "player_id": int(row["player_id"]),
-            "player_name": row["player_name"],
-            "team_name": row["team_name"],
-            "similarity": round(sim_score, 4),
-            "appearances": int(row["appearances"]),
-        })
+        results.append(
+            {
+                "player_id": int(row["player_id"]),
+                "player_name": row["player_name"],
+                "team_name": row["team_name"],
+                "similarity": round(sim_score, 4),
+                "appearances": int(row["appearances"]),
+            }
+        )
 
     result_df = pd.DataFrame(results)
     logger.info(

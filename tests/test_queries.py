@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+
 from football_analytics.analysis.queries import (
     AnalyticalQuery,
     AnalyticalQueryLibrary,
@@ -18,14 +19,12 @@ from football_analytics.analysis.queries import (
 class TestQueryParameter:
     """Tests for query parameter definition."""
 
-    def test_required_parameter(self):
-        p = QueryParameter(
-            name="team_id", type="int", description="Team identifier", required=True
-        )
+    def test_required_parameter(self) -> None:
+        p = QueryParameter(name="team_id", type="int", description="Team identifier", required=True)
         assert p.required is True
         assert p.default is None
 
-    def test_optional_with_default(self):
+    def test_optional_with_default(self) -> None:
         p = QueryParameter(
             name="limit",
             type="int",
@@ -43,7 +42,7 @@ class TestQueryParameter:
 class TestAnalyticalQuery:
     """Tests for query definition dataclass."""
 
-    def test_query_structure(self):
+    def test_query_structure(self) -> None:
         q = AnalyticalQuery(
             query_id="test_query",
             name="Test Query",
@@ -70,7 +69,7 @@ class TestAnalyticalQueryLibrary:
     def library(self, mock_engine):
         return AnalyticalQueryLibrary(engine=mock_engine)
 
-    def test_list_all_queries(self, library):
+    def test_list_all_queries(self, library) -> None:
         queries = library.list_queries()
         assert isinstance(queries, list)
         assert len(queries) == 21  # All 21 registered queries
@@ -82,12 +81,12 @@ class TestAnalyticalQueryLibrary:
             assert "category" in q
             assert "parameters" in q
 
-    def test_list_queries_by_category(self, library):
+    def test_list_queries_by_category(self, library) -> None:
         pressing = library.list_queries(category="Pressing & Transitions")
         assert len(pressing) >= 1
         assert all(q["category"] == "Pressing & Transitions" for q in pressing)
 
-    def test_get_categories(self, library):
+    def test_get_categories(self, library) -> None:
         categories = library.get_categories()
         assert isinstance(categories, list)
         assert len(categories) >= 5
@@ -97,7 +96,7 @@ class TestAnalyticalQueryLibrary:
         assert "Defensive Shape" in categories
         assert "Set Pieces" in categories
 
-    def test_known_query_ids_exist(self, library):
+    def test_known_query_ids_exist(self, library) -> None:
         queries = library.list_queries()
         ids = {q["query_id"] for q in queries}
         expected_ids = {
@@ -125,57 +124,47 @@ class TestAnalyticalQueryLibrary:
         }
         assert expected_ids.issubset(ids)
 
-    def test_execute_unknown_query_raises(self, library):
+    def test_execute_unknown_query_raises(self, library) -> None:
         with pytest.raises(ValueError, match="Unknown query"):
             library.execute("nonexistent_query", {})
 
-    def test_execute_missing_required_param_raises(self, library):
+    def test_execute_missing_required_param_raises(self, library) -> None:
         """Execute a query with missing required params should raise ValueError."""
         # pressing_triggers requires team_id and season_id
         with pytest.raises(ValueError, match="Missing required parameter"):
             library.execute("pressing_triggers", {})
 
-    def test_execute_returns_dataframe(self, library, mock_engine):
+    def test_execute_returns_dataframe(self, library, mock_engine) -> None:
         """Execute with valid params (mocked DB connection)."""
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
 
         with patch("pandas.read_sql") as mock_read_sql:
-            mock_read_sql.return_value = pd.DataFrame(
-                {"player_name": ["Test"], "presses": [15]}
-            )
-            result = library.execute(
-                "pressing_triggers", {"team_id": 1, "season_id": 90}
-            )
+            mock_read_sql.return_value = pd.DataFrame({"player_name": ["Test"], "presses": [15]})
+            result = library.execute("pressing_triggers", {"team_id": 1, "season_id": 90})
             assert isinstance(result, pd.DataFrame)
             assert len(result) == 1
 
-    def test_execute_to_dict(self, library, mock_engine):
+    def test_execute_to_dict(self, library, mock_engine) -> None:
         """execute_to_dict returns JSON-serialisable list."""
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
 
         with patch("pandas.read_sql") as mock_read_sql:
-            mock_read_sql.return_value = pd.DataFrame(
-                {"player_name": ["Test"], "presses": [15]}
-            )
-            result = library.execute_to_dict(
-                "pressing_triggers", {"team_id": 1, "season_id": 90}
-            )
+            mock_read_sql.return_value = pd.DataFrame({"player_name": ["Test"], "presses": [15]})
+            result = library.execute_to_dict("pressing_triggers", {"team_id": 1, "season_id": 90})
             assert isinstance(result, list)
             assert result[0]["player_name"] == "Test"
 
-    def test_validate_params_uses_defaults(self, library):
+    def test_validate_params_uses_defaults(self, library) -> None:
         """Parameters with defaults should be filled in."""
         queries = library.list_queries()
         # Find a query that has optional params with defaults
         for q_info in queries:
             params = q_info["parameters"]
-            optional_with_default = [
-                p for p in params if not p["required"] and p["default"] is not None
-            ]
+            optional_with_default = [p for p in params if not p["required"] and p["default"] is not None]
             if optional_with_default:
                 # This query has defaulted params — just test that listing works
                 assert q_info["query_id"] is not None

@@ -123,16 +123,18 @@ class BenchmarkResults:
         """Generate ranked leaderboard DataFrame."""
         records = []
         for r in sorted(self.results, key=lambda x: x.metrics.brier_score):
-            records.append({
-                "model": r.name,
-                "brier_score": r.metrics.brier_score,
-                "log_loss": r.metrics.log_loss,
-                "roc_auc": r.metrics.roc_auc,
-                "calibration_gap": abs(r.metrics.goal_rate - r.metrics.mean_predicted_xg),
-                "train_time_s": round(r.train_time_seconds, 2),
-                "feature_set": r.feature_set,
-                "calibrated": r.calibrated,
-            })
+            records.append(
+                {
+                    "model": r.name,
+                    "brier_score": r.metrics.brier_score,
+                    "log_loss": r.metrics.log_loss,
+                    "roc_auc": r.metrics.roc_auc,
+                    "calibration_gap": abs(r.metrics.goal_rate - r.metrics.mean_predicted_xg),
+                    "train_time_s": round(r.train_time_seconds, 2),
+                    "feature_set": r.feature_set,
+                    "calibrated": r.calibrated,
+                }
+            )
         df = pd.DataFrame(records)
         df.index = range(1, len(df) + 1)
         df.index.name = "rank"
@@ -203,10 +205,15 @@ class LogisticRegressionFactory(XGModelFactory):
         return True
 
     def build(self) -> Pipeline:
-        return Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs", random_state=42)),
-        ])
+        return Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "model",
+                    LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs", random_state=42),
+                ),
+            ]
+        )
 
 
 class RandomForestFactory(XGModelFactory):
@@ -395,23 +402,28 @@ class MLPFactory(XGModelFactory):
         return True
 
     def build(self) -> Pipeline:
-        return Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", MLPClassifier(
-                hidden_layer_sizes=(64, 32),
-                activation="relu",
-                solver="adam",
-                alpha=0.001,  # L2 regularisation
-                batch_size=64,
-                learning_rate="adaptive",
-                learning_rate_init=0.001,
-                max_iter=500,
-                early_stopping=True,
-                validation_fraction=0.15,
-                n_iter_no_change=20,
-                random_state=42,
-            )),
-        ])
+        return Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "model",
+                    MLPClassifier(
+                        hidden_layer_sizes=(64, 32),
+                        activation="relu",
+                        solver="adam",
+                        alpha=0.001,  # L2 regularisation
+                        batch_size=64,
+                        learning_rate="adaptive",
+                        learning_rate_init=0.001,
+                        max_iter=500,
+                        early_stopping=True,
+                        validation_fraction=0.15,
+                        n_iter_no_change=20,
+                        random_state=42,
+                    ),
+                ),
+            ]
+        )
 
 
 class DeepMLPFactory(XGModelFactory):
@@ -430,23 +442,28 @@ class DeepMLPFactory(XGModelFactory):
         return True
 
     def build(self) -> Pipeline:
-        return Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", MLPClassifier(
-                hidden_layer_sizes=(128, 64, 32, 16),
-                activation="relu",
-                solver="adam",
-                alpha=0.0005,
-                batch_size=128,
-                learning_rate="adaptive",
-                learning_rate_init=0.001,
-                max_iter=800,
-                early_stopping=True,
-                validation_fraction=0.15,
-                n_iter_no_change=30,
-                random_state=42,
-            )),
-        ])
+        return Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "model",
+                    MLPClassifier(
+                        hidden_layer_sizes=(128, 64, 32, 16),
+                        activation="relu",
+                        solver="adam",
+                        alpha=0.0005,
+                        batch_size=128,
+                        learning_rate="adaptive",
+                        learning_rate_init=0.001,
+                        max_iter=800,
+                        early_stopping=True,
+                        validation_fraction=0.15,
+                        n_iter_no_change=30,
+                        random_state=42,
+                    ),
+                ),
+            ]
+        )
 
 
 class StackingEnsembleFactory(XGModelFactory):
@@ -467,23 +484,40 @@ class StackingEnsembleFactory(XGModelFactory):
 
     def build(self) -> StackingClassifier:
         base_estimators = [
-            ("hist_gb", HistGradientBoostingClassifier(
-                max_iter=200, max_depth=5, learning_rate=0.1, random_state=42
-            )),
-            ("rf", RandomForestClassifier(
-                n_estimators=200, max_depth=7, min_samples_leaf=10, random_state=42, n_jobs=-1
-            )),
-            ("lr", Pipeline([
-                ("scaler", StandardScaler()),
-                ("model", LogisticRegression(C=1.0, max_iter=1000, random_state=42)),
-            ])),
-            ("mlp", Pipeline([
-                ("scaler", StandardScaler()),
-                ("model", MLPClassifier(
-                    hidden_layer_sizes=(64, 32), max_iter=300,
-                    early_stopping=True, random_state=42
-                )),
-            ])),
+            (
+                "hist_gb",
+                HistGradientBoostingClassifier(max_iter=200, max_depth=5, learning_rate=0.1, random_state=42),
+            ),
+            (
+                "rf",
+                RandomForestClassifier(n_estimators=200, max_depth=7, min_samples_leaf=10, random_state=42, n_jobs=-1),
+            ),
+            (
+                "lr",
+                Pipeline(
+                    [
+                        ("scaler", StandardScaler()),
+                        ("model", LogisticRegression(C=1.0, max_iter=1000, random_state=42)),
+                    ]
+                ),
+            ),
+            (
+                "mlp",
+                Pipeline(
+                    [
+                        ("scaler", StandardScaler()),
+                        (
+                            "model",
+                            MLPClassifier(
+                                hidden_layer_sizes=(64, 32),
+                                max_iter=300,
+                                early_stopping=True,
+                                random_state=42,
+                            ),
+                        ),
+                    ]
+                ),
+            ),
         ]
 
         return StackingClassifier(
@@ -523,15 +557,20 @@ class BayesianLogisticFactory(XGModelFactory):
         return True
 
     def build(self) -> Pipeline:
-        return Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", LogisticRegression(
-                C=10.0,  # Weak regularisation (broad prior)
-                max_iter=2000,
-                solver="lbfgs",
-                random_state=42,
-            )),
-        ])
+        return Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "model",
+                    LogisticRegression(
+                        C=10.0,  # Weak regularisation (broad prior)
+                        max_iter=2000,
+                        solver="lbfgs",
+                        random_state=42,
+                    ),
+                ),
+            ]
+        )
 
 
 # ============================================================================
@@ -588,9 +627,7 @@ REGISTRY = ModelRegistry()
 # ============================================================================
 
 
-def _prepare_features(
-    shots_df: pd.DataFrame, feature_set: str
-) -> tuple[pd.DataFrame, pd.Series, list[str]]:
+def _prepare_features(shots_df: pd.DataFrame, feature_set: str) -> tuple[pd.DataFrame, pd.Series, list[str]]:
     """Prepare features and target for a given feature set."""
     if feature_set == "advanced":
         df = engineer_advanced_features(shots_df)
@@ -630,8 +667,13 @@ def train_and_evaluate(
     factory = registry.get(model_name)
     X, y, feature_cols = _prepare_features(shots_df, factory.feature_set)
 
-    logger.info("Training %s: %d shots, %d features (%s set)",
-                model_name, len(X), len(feature_cols), factory.feature_set)
+    logger.info(
+        "Training %s: %d shots, %d features (%s set)",
+        model_name,
+        len(X),
+        len(feature_cols),
+        factory.feature_set,
+    )
 
     estimator = factory.build()
 
@@ -648,8 +690,12 @@ def train_and_evaluate(
             name=model_name,
             model=None,
             metrics=XGModelMetrics(
-                brier_score=0.25, log_loss=1.0, roc_auc=0.5,
-                n_shots=len(y), goal_rate=float(y.mean()), mean_predicted_xg=0.0,
+                brier_score=0.25,
+                log_loss=1.0,
+                roc_auc=0.5,
+                n_shots=len(y),
+                goal_rate=float(y.mean()),
+                mean_predicted_xg=0.0,
             ),
             cv_predictions=np.zeros(len(y)),
             train_time_seconds=0.0,
@@ -681,8 +727,14 @@ def train_and_evaluate(
         mean_predicted_xg=float(cv_probs.mean()),
     )
 
-    logger.info("  %s — Brier: %.4f, AUC: %.4f, LogLoss: %.4f (%.1fs)",
-                model_name, metrics.brier_score, metrics.roc_auc, metrics.log_loss, train_time)
+    logger.info(
+        "  %s — Brier: %.4f, AUC: %.4f, LogLoss: %.4f (%.1fs)",
+        model_name,
+        metrics.brier_score,
+        metrics.roc_auc,
+        metrics.log_loss,
+        train_time,
+    )
 
     return ModelResult(
         name=model_name,
@@ -861,14 +913,14 @@ def compute_calibration_curves(
 
     curves = {}
     # Get actual outcomes
-    first_result = results.results[0]
+    results.results[0]
     # Reconstruct y from predictions shape
     for r in results.results:
         if r.cv_predictions is None or len(r.cv_predictions) == 0:
             continue
         # We need the actual y — reconstruct from goal rate
         # This is approximate; for exact curves, pass y explicitly
-        n = len(r.cv_predictions)
+        len(r.cv_predictions)
         # Use the metrics to determine approximate y
         # Better approach: store y in BenchmarkResults
         break
@@ -906,12 +958,14 @@ def generate_model_report(results: BenchmarkResults) -> str:
             f"LogLoss={row['log_loss']:.4f}  ({row['train_time_s']:.1f}s)"
         )
 
-    lines.extend([
-        "",
-        "-" * 65,
-        "ANALYSIS:",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "-" * 65,
+            "ANALYSIS:",
+            "",
+        ]
+    )
 
     # Best/worst comparison
     best = results.best_model("brier_score")
@@ -926,18 +980,20 @@ def generate_model_report(results: BenchmarkResults) -> str:
     # Speed analysis
     fastest = min(results.results, key=lambda r: r.train_time_seconds)
     slowest = max(results.results, key=lambda r: r.train_time_seconds)
-    lines.extend([
-        "",
-        f"  Fastest: {fastest.name} ({fastest.train_time_seconds:.1f}s)",
-        f"  Slowest: {slowest.name} ({slowest.train_time_seconds:.1f}s)",
-        "",
-        "RECOMMENDATIONS:",
-        "-" * 65,
-        f"  * Production (best accuracy): {best.name}",
-        f"  * Real-time API (speed+accuracy): {fastest.name if fastest.metrics.roc_auc > 0.75 else 'HistGradientBoosting'}",
-        "  * Interpretability: LogisticRegression",
-        "  * Maximum accuracy: StackingEnsemble",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            f"  Fastest: {fastest.name} ({fastest.train_time_seconds:.1f}s)",
+            f"  Slowest: {slowest.name} ({slowest.train_time_seconds:.1f}s)",
+            "",
+            "RECOMMENDATIONS:",
+            "-" * 65,
+            f"  * Production (best accuracy): {best.name}",
+            f"  * Real-time API (speed+accuracy): {fastest.name if fastest.metrics.roc_auc > 0.75 else 'HistGradientBoosting'}",
+            "  * Interpretability: LogisticRegression",
+            "  * Maximum accuracy: StackingEnsemble",
+            "",
+        ]
+    )
 
     return "\n".join(lines)

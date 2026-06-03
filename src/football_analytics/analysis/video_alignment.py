@@ -267,16 +267,12 @@ def calibrate_alignment(
         config = VideoConfig()
 
     if not reference_points:
-        return AlignmentCalibration(
-            reference_events=[], computed_offset=0.0, confidence=0.0, residual_error=0.0
-        )
+        return AlignmentCalibration(reference_events=[], computed_offset=0.0, confidence=0.0, residual_error=0.0)
 
     # Compute offset from each reference point
     offsets = []
     for ref in reference_points:
-        predicted = match_clock_to_video_time(
-            ref["minute"], ref["second"], ref["period"], config
-        )
+        predicted = match_clock_to_video_time(ref["minute"], ref["second"], ref["period"], config)
         actual = ref["video_timestamp"]
         if isinstance(actual, str):
             actual = timecode_to_seconds(actual)
@@ -331,10 +327,7 @@ def export_ffmpeg_clip_list(
         filename = f"{output_dir}/{i:03d}_{safe_label}.mp4"
 
         lines.append(f"# Clip {i}: {clip.label}")
-        lines.append(
-            f'ffmpeg -ss {clip.clip_start:.2f} -i "{video_path}" '
-            f'-t {duration:.2f} -c copy "{filename}" -y'
-        )
+        lines.append(f'ffmpeg -ss {clip.clip_start:.2f} -i "{video_path}" -t {duration:.2f} -c copy "{filename}" -y')
         lines.append("")
 
     return "\n".join(lines)
@@ -406,16 +399,18 @@ def generate_event_timeline(
 
         video_time = match_clock_to_video_time(minute, second, period, config)
 
-        records.append({
-            "event_id": row.get("event_id"),
-            "event_type": row.get("event_type"),
-            "player_name": row.get("player_name"),
-            "team_id": row.get("team_id"),
-            "minute": minute,
-            "second": second,
-            "period": period,
-            "video_timestamp_seconds": round(video_time, 2),
-            "video_timecode": seconds_to_timecode(video_time, config.frame_rate),
-        })
+        records.append(
+            {
+                "event_id": row.get("event_id"),
+                "event_type": row.get("event_type"),
+                "player_name": row.get("player_name"),
+                "team_id": row.get("team_id"),
+                "minute": minute,
+                "second": second,
+                "period": period,
+                "video_timestamp_seconds": round(video_time, 2),
+                "video_timecode": seconds_to_timecode(video_time, config.frame_rate),
+            }
+        )
 
     return pd.DataFrame(records)

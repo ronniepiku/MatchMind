@@ -22,8 +22,7 @@ def _get_password() -> str:
     pw = os.getenv("POSTGRES_PASSWORD")
     if not pw:
         raise RuntimeError(
-            "POSTGRES_PASSWORD environment variable is required. "
-            "Set it in your .env file or export it before running."
+            "POSTGRES_PASSWORD environment variable is required. Set it in your .env file or export it before running."
         )
     return pw
 
@@ -34,9 +33,7 @@ class DatabaseConfig:
 
     host: str = field(default_factory=lambda: os.getenv("POSTGRES_HOST", "localhost"))
     port: int = field(default_factory=lambda: int(os.getenv("POSTGRES_PORT", "5432")))
-    db: str = field(
-        default_factory=lambda: os.getenv("POSTGRES_DB", "football_analytics")
-    )
+    db: str = field(default_factory=lambda: os.getenv("POSTGRES_DB", "football_analytics"))
     user: str = field(default_factory=lambda: os.getenv("POSTGRES_USER", "analyst"))
     password: str = field(default_factory=_get_password)
 
@@ -50,13 +47,9 @@ class DatabaseConfig:
         if database_url:
             # Railway uses postgres:// but SQLAlchemy needs postgresql://
             if database_url.startswith("postgres://"):
-                database_url = database_url.replace(
-                    "postgres://", "postgresql+psycopg2://", 1
-                )
+                database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
             elif database_url.startswith("postgresql://"):
-                database_url = database_url.replace(
-                    "postgresql://", "postgresql+psycopg2://", 1
-                )
+                database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
             return database_url
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
@@ -68,12 +61,8 @@ class AppConfig:
     db: DatabaseConfig = field(default_factory=DatabaseConfig)
     data_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data")
     raw_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data" / "raw")
-    processed_dir: Path = field(
-        default_factory=lambda: _PROJECT_ROOT / "data" / "processed"
-    )
-    dash_debug: bool = field(
-        default_factory=lambda: os.getenv("DASH_DEBUG", "false").lower() == "true"
-    )
+    processed_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data" / "processed")
+    dash_debug: bool = field(default_factory=lambda: os.getenv("DASH_DEBUG", "false").lower() == "true")
     dash_port: int = field(default_factory=lambda: int(os.getenv("DASH_PORT", "8050")))
 
 

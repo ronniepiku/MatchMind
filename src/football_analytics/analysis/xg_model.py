@@ -87,8 +87,7 @@ def engineer_features(shots_df: pd.DataFrame) -> pd.DataFrame:
 
     # Distance to goal centre
     df["distance_to_goal"] = np.sqrt(
-        (df["location_x"] - _GOAL_CENTRE[0]) ** 2 +
-        (df["location_y"] - _GOAL_CENTRE[1]) ** 2
+        (df["location_x"] - _GOAL_CENTRE[0]) ** 2 + (df["location_y"] - _GOAL_CENTRE[1]) ** 2
     )
 
     # Angle to goal (radians) — wider angle = easier shot
@@ -100,9 +99,7 @@ def engineer_features(shots_df: pd.DataFrame) -> pd.DataFrame:
         vec_left = _GOAL_LEFT_POST - shot_pos
         vec_right = _GOAL_RIGHT_POST - shot_pos
 
-        cos_angle = np.dot(vec_left, vec_right) / (
-            np.linalg.norm(vec_left) * np.linalg.norm(vec_right) + 1e-8
-        )
+        cos_angle = np.dot(vec_left, vec_right) / (np.linalg.norm(vec_left) * np.linalg.norm(vec_right) + 1e-8)
         return float(np.arccos(np.clip(cos_angle, -1, 1)))
 
     df["goal_angle"] = df.apply(_goal_angle, axis=1)
@@ -201,15 +198,20 @@ def train_xg_model(
     logger.info("Training xG model: %d shots, %.1f%% goals", len(X), y.mean() * 100)
 
     # Pipeline: scale features → logistic regression
-    pipeline = Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", LogisticRegression(
-            C=1.0,           # Regularisation strength
-            max_iter=1000,
-            solver="lbfgs",
-            random_state=42,
-        )),
-    ])
+    pipeline = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            (
+                "model",
+                LogisticRegression(
+                    C=1.0,  # Regularisation strength
+                    max_iter=1000,
+                    solver="lbfgs",
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
 
     # Cross-validated predictions (out-of-fold for honest evaluation)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
@@ -257,13 +259,15 @@ def compare_with_statsbomb(
     Returns a comparison DataFrame showing both models' predictions alongside
     actual outcomes for calibration assessment.
     """
-    comparison = pd.DataFrame({
-        "player": shots_df.get("player_name", shots_df.get("player", "Unknown")),
-        "minute": shots_df["minute"],
-        "statsbomb_xg": shots_df.get("xg", shots_df.get("shot_statsbomb_xg", None)),
-        "custom_xg": custom_xg,
-        "actual_goal": (shots_df["shot_outcome"] == "Goal").astype(int),
-    })
+    comparison = pd.DataFrame(
+        {
+            "player": shots_df.get("player_name", shots_df.get("player", "Unknown")),
+            "minute": shots_df["minute"],
+            "statsbomb_xg": shots_df.get("xg", shots_df.get("shot_statsbomb_xg", None)),
+            "custom_xg": custom_xg,
+            "actual_goal": (shots_df["shot_outcome"] == "Goal").astype(int),
+        }
+    )
 
     # Calculate errors
     if comparison["statsbomb_xg"].notna().any():
@@ -279,16 +283,18 @@ def get_feature_importance(model: Pipeline) -> pd.DataFrame:
     Positive coefficients increase goal probability; negative decrease it.
     """
     lr = model.named_steps["model"]
-    scaler = model.named_steps["scaler"]
+    model.named_steps["scaler"]
     feature_names = get_feature_columns()
 
     # Scale-adjusted coefficients for interpretability
     coefs = lr.coef_[0]
 
-    importance = pd.DataFrame({
-        "feature": feature_names,
-        "coefficient": coefs,
-        "abs_importance": np.abs(coefs),
-    }).sort_values("abs_importance", ascending=False)
+    importance = pd.DataFrame(
+        {
+            "feature": feature_names,
+            "coefficient": coefs,
+            "abs_importance": np.abs(coefs),
+        }
+    ).sort_values("abs_importance", ascending=False)
 
     return importance

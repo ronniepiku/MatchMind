@@ -312,9 +312,7 @@ class TestAdvancedXG:
                 "shot_body_part": rng.choice(["Foot", "Head"], n, p=[0.75, 0.25]),
                 "under_pressure": rng.choice([True, False], n, p=[0.3, 0.7]),
                 "play_pattern": "From Open Play",
-                "shot_type": rng.choice(
-                    ["Open Play", "Penalty", "Free Kick"], n, p=[0.88, 0.07, 0.05]
-                ),
+                "shot_type": rng.choice(["Open Play", "Penalty", "Free Kick"], n, p=[0.88, 0.07, 0.05]),
                 "shot_outcome": np.where(goals, "Goal", "Off T"),
                 "minute": rng.integers(1, 90, n),
             }
@@ -336,9 +334,7 @@ class TestAdvancedXG:
             train_advanced_xg_model,
         )
 
-        result = train_advanced_xg_model(
-            shot_data, backend="hist", tune_hyperparams=False, calibrate=False
-        )
+        result = train_advanced_xg_model(shot_data, backend="hist", tune_hyperparams=False, calibrate=False)
         assert result.metrics.roc_auc > 0.55  # Better than random
         assert 0 <= result.metrics.brier_score <= 0.25
         assert len(result.cv_predictions) == len(shot_data)
@@ -349,9 +345,7 @@ class TestAdvancedXG:
             train_advanced_xg_model,
         )
 
-        result = train_advanced_xg_model(
-            shot_data, backend="hist", tune_hyperparams=False, calibrate=False
-        )
+        result = train_advanced_xg_model(shot_data, backend="hist", tune_hyperparams=False, calibrate=False)
         preds = predict_advanced_xg(result.model, shot_data.head(10))
         assert len(preds) == 10
         assert all(0 <= p <= 1 for p in preds)
@@ -361,9 +355,7 @@ class TestAdvancedXG:
             train_advanced_xg_model,
         )
 
-        result = train_advanced_xg_model(
-            shot_data, backend="hist", tune_hyperparams=False, calibrate=False
-        )
+        result = train_advanced_xg_model(shot_data, backend="hist", tune_hyperparams=False, calibrate=False)
         assert not result.feature_importance.empty
         assert "feature" in result.feature_importance.columns
         assert "importance" in result.feature_importance.columns
@@ -429,9 +421,7 @@ class TestMatchSimulation:
             simulate_match,
         )
 
-        result = simulate_match(
-            home_xg=1.5, away_xg=1.2, home_team="Arsenal", away_team="Chelsea"
-        )
+        result = simulate_match(home_xg=1.5, away_xg=1.2, home_team="Arsenal", away_team="Chelsea")
         report = format_simulation_report(result)
         assert "Arsenal" in report
         assert "Chelsea" in report
@@ -502,9 +492,7 @@ class TestPlayerDevelopment:
     def test_trend_slopes_positive(self, per90_data: pd.DataFrame) -> None:
         from football_analytics.analysis.development import compute_development_profile
 
-        profile = compute_development_profile(
-            per90_data, player_id=1, position_group="forward"
-        )
+        profile = compute_development_profile(per90_data, player_id=1, position_group="forward")
         # All metrics are improving
         for slope in profile.trend_slopes.values():
             assert slope > 0
@@ -515,9 +503,7 @@ class TestPlayerDevelopment:
             generate_development_report,
         )
 
-        profile = compute_development_profile(
-            per90_data, player_id=1, position_group="forward"
-        )
+        profile = compute_development_profile(per90_data, player_id=1, position_group="forward")
         report = generate_development_report(profile)
         assert "Development Report" in report
         assert "↑" in report  # Upward trend indicators
@@ -534,12 +520,8 @@ class TestSpatialDominance:
     def test_voronoi_frame_basic(self) -> None:
         from football_analytics.analysis.spatial import compute_voronoi_frame
 
-        home = np.array(
-            [[20.0, 34.0], [40.0, 20.0], [40.0, 48.0], [60.0, 34.0], [70.0, 34.0]]
-        )
-        away = np.array(
-            [[80.0, 34.0], [60.0, 20.0], [60.0, 48.0], [50.0, 34.0], [45.0, 34.0]]
-        )
+        home = np.array([[20.0, 34.0], [40.0, 20.0], [40.0, 48.0], [60.0, 34.0], [70.0, 34.0]])
+        away = np.array([[80.0, 34.0], [60.0, 20.0], [60.0, 48.0], [50.0, 34.0], [45.0, 34.0]])
 
         frame = compute_voronoi_frame(home, away)
         # Total controlled area should approximate pitch area
@@ -752,6 +734,7 @@ class TestAPI:
     @pytest.fixture
     def client(self):
         from fastapi.testclient import TestClient
+
         from football_analytics.api import app
 
         return TestClient(app)

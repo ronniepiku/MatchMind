@@ -28,10 +28,7 @@ def get_available_teams(engine: Any) -> list[dict[str, str]]:
                 conn,
             )
         if not df.empty:
-            return [
-                {"label": row["team_name"], "value": row["team_id"]}
-                for _, row in df.iterrows()
-            ]
+            return [{"label": row["team_name"], "value": row["team_id"]} for _, row in df.iterrows()]
     except Exception as e:
         logger.warning("Could not fetch teams from DB: %s", e)
 
@@ -100,10 +97,7 @@ def get_available_players(
         with engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
         if not df.empty:
-            return [
-                {"label": row["player_name"], "value": row["player_id"]}
-                for _, row in df.iterrows()
-            ]
+            return [{"label": row["player_name"], "value": row["player_id"]} for _, row in df.iterrows()]
     except Exception as e:
         logger.warning("Could not fetch players from DB: %s", e)
 
@@ -142,18 +136,13 @@ def check_data_availability(
             return {
                 "available": False,
                 "message": (
-                    "No data found for this team/season. "
-                    "Please run the data ingestion pipeline first: "
-                    "uv run fb-ingest"
+                    "No data found for this team/season. Please run the data ingestion pipeline first: uv run fb-ingest"
                 ),
             }
     except Exception as e:
         return {
             "available": False,
-            "message": (
-                f"Database connection error: {e}. "
-                "Ensure PostgreSQL is running and configured."
-            ),
+            "message": (f"Database connection error: {e}. Ensure PostgreSQL is running and configured."),
         }
 
 
@@ -173,15 +162,8 @@ def _get_statsbomb_teams() -> list[dict[str, str]]:
         away = matches[["away_team_id", "away_team"]].rename(
             columns={"away_team_id": "team_id", "away_team": "team_name"},
         )
-        teams = (
-            pd.concat([home, away])
-            .drop_duplicates(subset=["team_id"])
-            .sort_values("team_name")
-        )
-        return [
-            {"label": row["team_name"], "value": row["team_id"]}
-            for _, row in teams.iterrows()
-        ]
+        teams = pd.concat([home, away]).drop_duplicates(subset=["team_id"]).sort_values("team_name")
+        return [{"label": row["team_name"], "value": row["team_id"]} for _, row in teams.iterrows()]
     except Exception as e:
         logger.warning("StatsBomb fallback failed: %s", e)
         return []

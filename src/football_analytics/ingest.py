@@ -118,11 +118,7 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
             generated_ids = (
                 raw_events["id"]
                 .astype(str)
-                .apply(
-                    lambda raw_id: str(
-                        uuid.uuid5(uuid.NAMESPACE_URL, f"{match_id}-{raw_id}")
-                    )
-                )
+                .apply(lambda raw_id: str(uuid.uuid5(uuid.NAMESPACE_URL, f"{match_id}-{raw_id}")))
             )
         else:
             generated_ids = [str(uuid.uuid4()) for _ in range(len(df))]
@@ -135,9 +131,7 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # Extract location coordinates (vectorised)
     if "location" in df.columns:
         locations = df["location"].apply(
-            lambda loc: pd.Series(
-                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
-            )
+            lambda loc: pd.Series(loc if isinstance(loc, list) and len(loc) >= 2 else [None, None])
         )
         df["location_x"] = locations[0].astype("Float64")
         df["location_y"] = locations[1].astype("Float64")
@@ -199,17 +193,13 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # End location (for passes, shots)
     if "pass_end_location" in df.columns:
         pass_end = df["pass_end_location"].apply(
-            lambda loc: pd.Series(
-                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
-            )
+            lambda loc: pd.Series(loc if isinstance(loc, list) and len(loc) >= 2 else [None, None])
         )
         df["end_location_x"] = pass_end[0].astype("Float64")
         df["end_location_y"] = pass_end[1].astype("Float64")
     elif "shot_end_location" in df.columns:
         shot_end = df["shot_end_location"].apply(
-            lambda loc: pd.Series(
-                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
-            )
+            lambda loc: pd.Series(loc if isinstance(loc, list) and len(loc) >= 2 else [None, None])
         )
         df["end_location_x"] = shot_end[0].astype("Float64")
         df["end_location_y"] = shot_end[1].astype("Float64")
@@ -220,9 +210,7 @@ def normalize_events(raw_events: pd.DataFrame, match_id: int) -> pd.DataFrame:
     # Carry end location
     if "carry_end_location" in df.columns:
         carry_end = df["carry_end_location"].apply(
-            lambda loc: pd.Series(
-                loc if isinstance(loc, list) and len(loc) >= 2 else [None, None]
-            )
+            lambda loc: pd.Series(loc if isinstance(loc, list) and len(loc) >= 2 else [None, None])
         )
         df["carry_end_x"] = carry_end[0].astype("Float64")
         df["carry_end_y"] = carry_end[1].astype("Float64")
@@ -270,14 +258,9 @@ def normalize_lineups(
                     "player_nickname": row.get("player_nickname"),
                     "player_country": country,
                     "jersey_number": row.get("jersey_number"),
-                    "position": (
-                        row.get("positions", [{}])[0].get("position")
-                        if row.get("positions")
-                        else None
-                    ),
+                    "position": (row.get("positions", [{}])[0].get("position") if row.get("positions") else None),
                     "is_starter": (
-                        row.get("positions", [{}])[0].get("from", "0:00:00")
-                        == "0:00:00"
+                        row.get("positions", [{}])[0].get("from", "0:00:00") == "0:00:00"
                         if row.get("positions")
                         else False
                     ),
@@ -493,6 +476,7 @@ def _executemany_load_events(engine: Engine, df: pd.DataFrame, cols: list[str]) 
     records = df.to_dict("records")
     # Ensure NaN values are converted to None for SQL NULL compatibility
     import math
+
     for record in records:
         for key, val in record.items():
             if isinstance(val, float) and math.isnan(val):
@@ -550,11 +534,9 @@ def ingest_competition(
     _load_matches(engine, matches_df, competition_id, season_id)
 
     # 5. Process each match (events + lineups)
-    team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"]))
+    team_id_map = dict(zip(all_teams["team_name"], all_teams["team_id"], strict=False))
 
-    for _, match_row in tqdm(
-        matches_df.iterrows(), total=len(matches_df), desc="Ingesting matches"
-    ):
+    for _, match_row in tqdm(matches_df.iterrows(), total=len(matches_df), desc="Ingesting matches"):
         match_id = int(match_row["match_id"])
         try:
             # Fetch and load events
@@ -581,9 +563,7 @@ def ingest_competition(
     # 6. Refresh materialised views for fresh dashboard/API data
     _refresh_materialised_views(engine)
 
-    logger.info(
-        "Ingestion complete for competition=%d season=%d", competition_id, season_id
-    )
+    logger.info("Ingestion complete for competition=%d season=%d", competition_id, season_id)
 
 
 def _refresh_materialised_views(engine: Engine) -> None:
@@ -594,15 +574,12 @@ def _refresh_materialised_views(engine: Engine) -> None:
         logger.info("Materialised views refreshed successfully")
     except Exception as e:
         logger.warning(
-            "Could not refresh materialised views: %s. "
-            "Dashboard data may be stale until manually refreshed.",
+            "Could not refresh materialised views: %s. Dashboard data may be stale until manually refreshed.",
             e,
         )
 
 
-def _load_competition(
-    engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int
-) -> None:
+def _load_competition(engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int) -> None:
     """Load the competition/season row required by match foreign keys."""
     if matches_df.empty:
         return
@@ -641,9 +618,7 @@ def _load_competition(
         )
 
 
-def _load_matches(
-    engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int
-) -> None:
+def _load_matches(engine: Engine, matches_df: pd.DataFrame, competition_id: int, season_id: int) -> None:
     """Load match records with all available metadata."""
     with engine.begin() as conn:
         for _, row in matches_df.iterrows():
@@ -695,11 +670,7 @@ def _load_matches(
                     "away_team_id": int(row["away_team_id"]),
                     "home_score": int(row.get("home_score", 0)),
                     "away_score": int(row.get("away_score", 0)),
-                    "match_week": (
-                        int(row.get("match_week", 0))
-                        if pd.notnull(row.get("match_week"))
-                        else None
-                    ),
+                    "match_week": (int(row.get("match_week", 0)) if pd.notnull(row.get("match_week")) else None),
                     "stadium": stadium,
                     "referee": referee,
                     "competition_stage": comp_stage,
@@ -735,7 +706,7 @@ def _resolve_ids(events: pd.DataFrame, engine: Engine) -> pd.DataFrame:
     if "team_id" not in events.columns and "team_name" in events.columns:
         with engine.connect() as conn:
             teams = pd.read_sql("SELECT team_id, team_name FROM teams", conn)
-        team_map = dict(zip(teams["team_name"], teams["team_id"]))
+        team_map = dict(zip(teams["team_name"], teams["team_id"], strict=False))
         events["team_id"] = events["team_name"].map(team_map)
     return events
 
@@ -779,11 +750,7 @@ def _load_lineups(engine: Engine, lineups: pd.DataFrame) -> None:
                     "match_id": int(row["match_id"]),
                     "team_id": int(row["team_id"]),
                     "player_id": int(row["player_id"]),
-                    "jersey_number": (
-                        int(row["jersey_number"])
-                        if pd.notnull(row.get("jersey_number"))
-                        else None
-                    ),
+                    "jersey_number": (int(row["jersey_number"]) if pd.notnull(row.get("jersey_number")) else None),
                     "position": position_val,
                     "is_starter": bool(row.get("is_starter", False)),
                 },
@@ -803,13 +770,9 @@ def main() -> None:
     """
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    parser = argparse.ArgumentParser(
-        description="Ingest StatsBomb data into PostgreSQL"
-    )
+    parser = argparse.ArgumentParser(description="Ingest StatsBomb data into PostgreSQL")
     parser.add_argument(
         "--competition-id",
         type=int,

@@ -4,28 +4,23 @@ from __future__ import annotations
 
 from datetime import date
 
-import numpy as np
-import pandas as pd
 import pytest
+
 from football_analytics.prediction.match_predictor import (
     ConfidenceLevel,
     HeadToHead,
-    MatchPrediction,
     MatchPredictor,
     VenueType,
 )
 from football_analytics.prediction.tactical_matchup import (
-    TacticalMatchup,
     _compare_dimensions,
     _compute_overall_advantage,
     _generate_recommendations,
     _identify_key_battles,
-    analyse_matchup,
 )
 from football_analytics.prediction.team_rating import (
     CompetitionTier,
     TeamRating,
-    TeamRatingEngine,
 )
 from football_analytics.prediction.tournament import (
     CompetitionFormat,
@@ -236,9 +231,7 @@ class TestMatchPredictor:
         xg_strong = sample_ratings[1].offensive_strength * (
             avg_defense / max(sample_ratings[3].defensive_strength, 0.3)
         )
-        xg_weak = sample_ratings[3].offensive_strength * (
-            avg_defense / max(sample_ratings[1].defensive_strength, 0.3)
-        )
+        xg_weak = sample_ratings[3].offensive_strength * (avg_defense / max(sample_ratings[1].defensive_strength, 0.3))
 
         result = simulate_match(home_xg=xg_strong, away_xg=xg_weak, n_simulations=10000)
         assert result.home_win_prob > result.away_win_prob
@@ -288,22 +281,15 @@ class TestMatchPredictor:
             form_trend=0.0,
         )
 
-        assert (
-            predictor._assess_confidence(high_rating, high_rating)
-            == ConfidenceLevel.HIGH
-        )
-        assert (
-            predictor._assess_confidence(high_rating, low_rating) == ConfidenceLevel.LOW
-        )
+        assert predictor._assess_confidence(high_rating, high_rating) == ConfidenceLevel.HIGH
+        assert predictor._assess_confidence(high_rating, low_rating) == ConfidenceLevel.LOW
         assert predictor._assess_confidence(None, high_rating) == ConfidenceLevel.LOW
         assert predictor._assess_confidence(None, None) == ConfidenceLevel.INSUFFICIENT
 
     def test_xg_derivation_interaction_model(self, sample_ratings: dict) -> None:
         """Expected xG should reflect attacker strength vs opponent defense."""
         predictor = MatchPredictor.__new__(MatchPredictor)
-        xg_a, xg_b = predictor._derive_expected_xg(
-            sample_ratings[1], sample_ratings[3], VenueType.NEUTRAL
-        )
+        xg_a, xg_b = predictor._derive_expected_xg(sample_ratings[1], sample_ratings[3], VenueType.NEUTRAL)
         # Strong team (off=2.1) vs weak defense (def=1.6) → boosted xG
         assert xg_a > 1.5
         # Weak team (off=0.8) vs strong defense (def=0.8) should produce lower xG than strong team
@@ -312,9 +298,7 @@ class TestMatchPredictor:
     def test_xg_clamped_to_range(self, sample_ratings: dict) -> None:
         """Expected xG should be clamped between 0.3 and 4.0."""
         predictor = MatchPredictor.__new__(MatchPredictor)
-        xg_a, xg_b = predictor._derive_expected_xg(
-            sample_ratings[1], sample_ratings[3], VenueType.NEUTRAL
-        )
+        xg_a, xg_b = predictor._derive_expected_xg(sample_ratings[1], sample_ratings[3], VenueType.NEUTRAL)
         assert 0.3 <= xg_a <= 4.0
         assert 0.3 <= xg_b <= 4.0
 
@@ -362,9 +346,7 @@ class TestTournamentSimulator:
         for tid in [1, 2, 3, 4]:
             tr = result.team_results[tid]
             # Group position probs should sum to ≈1.0
-            group_total = (
-                tr.group_first_prob + tr.group_second_prob + tr.group_third_prob
-            )
+            group_total = tr.group_first_prob + tr.group_second_prob + tr.group_third_prob
             # 4th place prob is implicit (1 - sum of others)
             assert group_total <= 1.0 + 0.01
 
@@ -384,10 +366,7 @@ class TestTournamentSimulator:
         result = simulator.simulate(fmt, n_simulations=5000)
 
         # Strong FC (rating 1.3) should advance more often than Weak City (-0.8)
-        assert (
-            result.team_results[1].group_advance_prob
-            > result.team_results[3].group_advance_prob
-        )
+        assert result.team_results[1].group_advance_prob > result.team_results[3].group_advance_prob
 
     def test_league_simulation_points_bounded(self, sample_ratings: dict) -> None:
         """League simulation should produce reasonable point totals."""
@@ -441,10 +420,7 @@ class TestTournamentSimulator:
         result2 = simulator.simulate(fmt, n_simulations=500, seed=123)
 
         for tid in [1, 2, 3]:
-            assert (
-                result1.team_results[tid].expected_points
-                == result2.team_results[tid].expected_points
-            )
+            assert result1.team_results[tid].expected_points == result2.team_results[tid].expected_points
 
 
 # =============================================================================
@@ -455,45 +431,35 @@ class TestTournamentSimulator:
 class TestTacticalMatchup:
     """Tests for tactical matchup analysis."""
 
-    def test_dimensions_populated(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_dimensions_populated(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """Compare dimensions should return non-empty list."""
         dims = _compare_dimensions(sample_profile_a, sample_profile_b)
         assert len(dims) == 6  # 6 dimensions defined
         for dim in dims:
             assert -1.0 <= dim.advantage <= 1.0
 
-    def test_pressing_advantage_detected(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_pressing_advantage_detected(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """Higher pressing team should have positive pressing advantage."""
         dims = _compare_dimensions(sample_profile_a, sample_profile_b)
         pressing_dim = next(d for d in dims if d.name == "Pressing Intensity")
         # Profile A has 28 pressures/match vs B's 15 → positive advantage
         assert pressing_dim.advantage > 0
 
-    def test_counter_attack_battle_detected(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_counter_attack_battle_detected(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """High line vs counter-attack should be identified as key battle."""
         battles = _identify_key_battles(sample_profile_a, sample_profile_b)
         battle_areas = [b.area for b in battles]
         # Profile A has high line (52m) and Profile B has counter share (22%)
         assert "Space in behind" in battle_areas
 
-    def test_set_piece_battle_detected(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_set_piece_battle_detected(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """Significant set-piece difference should be flagged."""
         battles = _identify_key_battles(sample_profile_a, sample_profile_b)
         battle_areas = [b.area for b in battles]
         # Profile A: 0.25 SP xG vs B: 0.10 → difference > 0.1
         assert "Set pieces" in battle_areas
 
-    def test_recommendations_generated(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_recommendations_generated(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """Recommendations should be non-empty for contrasting teams."""
         dims = _compare_dimensions(sample_profile_a, sample_profile_b)
         recs = _generate_recommendations(sample_profile_a, sample_profile_b, dims)
@@ -502,9 +468,7 @@ class TestTacticalMatchup:
         has_counter_rec = any("counter" in r.lower() for r in recs)
         assert has_counter_rec
 
-    def test_overall_advantage_bounded(
-        self, sample_profile_a: dict, sample_profile_b: dict
-    ) -> None:
+    def test_overall_advantage_bounded(self, sample_profile_a: dict, sample_profile_b: dict) -> None:
         """Overall advantage should be in [-1, 1]."""
         dims = _compare_dimensions(sample_profile_a, sample_profile_b)
         overall = _compute_overall_advantage(dims)
@@ -545,10 +509,7 @@ class TestTournamentFormatPresets:
 
     def test_world_cup_2026_format(self) -> None:
         """World Cup 2026 should have correct structure."""
-        groups = [
-            GroupConfig(f"Group {chr(65+i)}", list(range(i * 4, i * 4 + 4)), 2)
-            for i in range(12)
-        ]
+        groups = [GroupConfig(f"Group {chr(65 + i)}", list(range(i * 4, i * 4 + 4)), 2) for i in range(12)]
         fmt = TournamentFormat.world_cup_2026(groups)
         assert fmt.format_type == CompetitionFormat.GROUPS_KNOCKOUT
         assert len(fmt.groups) == 12
@@ -567,10 +528,7 @@ class TestTournamentFormatPresets:
 
     def test_champions_league_format(self) -> None:
         """Champions League should have groups + knockout."""
-        groups = [
-            GroupConfig(f"Group {chr(65+i)}", list(range(i * 4, i * 4 + 4)), 2)
-            for i in range(8)
-        ]
+        groups = [GroupConfig(f"Group {chr(65 + i)}", list(range(i * 4, i * 4 + 4)), 2) for i in range(8)]
         fmt = TournamentFormat.champions_league(groups)
         assert fmt.format_type == CompetitionFormat.GROUPS_KNOCKOUT
         assert fmt.knockout_rounds == 4

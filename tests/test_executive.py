@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
+
 from football_analytics.reports.executive import (
     CompetitionOutlook,
     ExecutiveReportGenerator,
@@ -24,41 +23,25 @@ from football_analytics.reports.executive import (
 class TestRAGStatus:
     """Tests for RAG traffic-light indicators."""
 
-    def test_green_when_above_green_threshold(self):
-        assert (
-            RAGStatus.from_threshold(0.9, green_min=0.7, amber_min=0.4)
-            == RAGStatus.GREEN
-        )
+    def test_green_when_above_green_threshold(self) -> None:
+        assert RAGStatus.from_threshold(0.9, green_min=0.7, amber_min=0.4) == RAGStatus.GREEN
 
-    def test_green_at_exact_threshold(self):
-        assert (
-            RAGStatus.from_threshold(0.7, green_min=0.7, amber_min=0.4)
-            == RAGStatus.GREEN
-        )
+    def test_green_at_exact_threshold(self) -> None:
+        assert RAGStatus.from_threshold(0.7, green_min=0.7, amber_min=0.4) == RAGStatus.GREEN
 
-    def test_amber_between_thresholds(self):
-        assert (
-            RAGStatus.from_threshold(0.5, green_min=0.7, amber_min=0.4)
-            == RAGStatus.AMBER
-        )
+    def test_amber_between_thresholds(self) -> None:
+        assert RAGStatus.from_threshold(0.5, green_min=0.7, amber_min=0.4) == RAGStatus.AMBER
 
-    def test_amber_at_exact_threshold(self):
-        assert (
-            RAGStatus.from_threshold(0.4, green_min=0.7, amber_min=0.4)
-            == RAGStatus.AMBER
-        )
+    def test_amber_at_exact_threshold(self) -> None:
+        assert RAGStatus.from_threshold(0.4, green_min=0.7, amber_min=0.4) == RAGStatus.AMBER
 
-    def test_red_below_amber_threshold(self):
-        assert (
-            RAGStatus.from_threshold(0.3, green_min=0.7, amber_min=0.4) == RAGStatus.RED
-        )
+    def test_red_below_amber_threshold(self) -> None:
+        assert RAGStatus.from_threshold(0.3, green_min=0.7, amber_min=0.4) == RAGStatus.RED
 
-    def test_red_for_zero_value(self):
-        assert (
-            RAGStatus.from_threshold(0.0, green_min=0.7, amber_min=0.4) == RAGStatus.RED
-        )
+    def test_red_for_zero_value(self) -> None:
+        assert RAGStatus.from_threshold(0.0, green_min=0.7, amber_min=0.4) == RAGStatus.RED
 
-    def test_enum_values(self):
+    def test_enum_values(self) -> None:
         assert RAGStatus.RED.value == "red"
         assert RAGStatus.AMBER.value == "amber"
         assert RAGStatus.GREEN.value == "green"
@@ -70,7 +53,7 @@ class TestRAGStatus:
 class TestTrendDirection:
     """Tests for trend direction enum."""
 
-    def test_enum_values(self):
+    def test_enum_values(self) -> None:
         assert TrendDirection.IMPROVING.value == "improving"
         assert TrendDirection.STABLE.value == "stable"
         assert TrendDirection.DECLINING.value == "declining"
@@ -82,13 +65,13 @@ class TestTrendDirection:
 class TestDataclasses:
     """Tests for executive report data structures."""
 
-    def test_rag_metric_defaults(self):
+    def test_rag_metric_defaults(self) -> None:
         metric = RAGMetric(name="Goals per 90", value=1.5, unit="goals")
         assert metric.rag == RAGStatus.GREEN
         assert metric.trend == TrendDirection.STABLE
         assert metric.context == ""
 
-    def test_weekly_briefing_defaults(self):
+    def test_weekly_briefing_defaults(self) -> None:
         briefing = WeeklyBriefing()
         assert briefing.reporting_period == ""
         assert briefing.competitions == []
@@ -97,7 +80,7 @@ class TestDataclasses:
         assert briefing.week_difficulty == RAGStatus.GREEN
         assert briefing.headline == ""
 
-    def test_player_assessment_fields(self):
+    def test_player_assessment_fields(self) -> None:
         assessment = PlayerAssessment(
             player_id=10,
             player_name="Test Player",
@@ -108,7 +91,7 @@ class TestDataclasses:
         assert assessment.recommendation == ""
         assert assessment.kpis == []
 
-    def test_competition_outlook_fields(self):
+    def test_competition_outlook_fields(self) -> None:
         outlook = CompetitionOutlook(
             competition_name="Premier League",
             season="2024/25",
@@ -122,7 +105,7 @@ class TestDataclasses:
         assert outlook.targets == []
         assert outlook.form_rag == RAGStatus.GREEN
 
-    def test_post_match_summary_fields(self):
+    def test_post_match_summary_fields(self) -> None:
         summary = PostMatchExecutiveSummary(
             match_date="2025-01-15",
             fixture="Arsenal 2-1 Chelsea",
@@ -148,7 +131,7 @@ class TestExecutiveReportGenerator:
     def generator(self, mock_engine):
         return ExecutiveReportGenerator(engine=mock_engine)
 
-    def test_instantiation(self, generator):
+    def test_instantiation(self, generator) -> None:
         assert generator is not None
         assert generator._engine is not None
 
@@ -167,7 +150,7 @@ class TestExecutiveReportGenerator:
         mock_squad,
         mock_standings,
         generator,
-    ):
+    ) -> None:
         mock_standings.return_value = [{"competition": "PL", "position": 3}]
         mock_squad.return_value = [RAGMetric(name="Fitness", value=85, unit="%")]
         mock_upcoming.return_value = [{"fixture": "vs Chelsea", "date": "2025-01-20"}]
@@ -196,7 +179,7 @@ class TestExecutiveReportGenerator:
         mock_stats,
         mock_info,
         generator,
-    ):
+    ) -> None:
         mock_info.return_value = {"player_name": "Test Player", "position": "Forward"}
         mock_stats.return_value = {"matches": 20, "goals": 10}
         mock_trend.return_value = {

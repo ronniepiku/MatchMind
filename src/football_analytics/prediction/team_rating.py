@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from enum import Enum
 from typing import Any
 
@@ -97,7 +97,7 @@ class TeamRatingEngine:
         engine: Engine | None = None,
         half_life_days: int = 180,
         competition_tiers: dict[int, CompetitionTier] | None = None,
-    ):
+    ) -> None:
         """Initialise the rating engine.
 
         Args:
@@ -142,9 +142,7 @@ class TeamRatingEngine:
             Dict mapping team_id to TeamRating.
         """
         ref_date = reference_date or date.today()
-        team_matches = self._fetch_team_match_data(
-            competition_ids, season_ids, lookback_matches
-        )
+        team_matches = self._fetch_team_match_data(competition_ids, season_ids, lookback_matches)
 
         if team_matches.empty:
             logger.warning("No match data found for rating computation")
@@ -165,9 +163,7 @@ class TeamRatingEngine:
         season_ids: list[int] | None = None,
     ) -> TeamRatingSnapshot:
         """Compute a versioned snapshot of all ratings."""
-        ratings = self.compute_ratings(
-            competition_ids=competition_ids, season_ids=season_ids
-        )
+        ratings = self.compute_ratings(competition_ids=competition_ids, season_ids=season_ids)
         return TeamRatingSnapshot(
             computed_at=date.today(),
             lookback_days=self._half_life_days * 3,
@@ -277,9 +273,7 @@ class TeamRatingEngine:
         time_weights = np.exp(-np.log(2) * days_ago / self._half_life_days)
 
         # Competition tier weights
-        comp_weights = np.array(
-            [self._get_competition_weight(cid) for cid in matches["competition_id"]]
-        )
+        comp_weights = np.array([self._get_competition_weight(cid) for cid in matches["competition_id"]])
 
         # Combined weights
         weights = time_weights * comp_weights
@@ -296,16 +290,12 @@ class TeamRatingEngine:
         total_events = matches["total_events"].values
         # Approximate: team events / (team events * 2) — rough proxy
         possession_share = (
-            float(np.average(total_events / (total_events * 2), weights=weights))
-            if total_events.sum() > 0
-            else 0.5
+            float(np.average(total_events / (total_events * 2), weights=weights)) if total_events.sum() > 0 else 0.5
         )
 
         set_piece_xg = float(np.average(matches["set_piece_xg"], weights=weights))
 
-        progressive = (
-            matches["progressive_carries"].values + matches["progressive_passes"].values
-        )
+        progressive = matches["progressive_carries"].values + matches["progressive_passes"].values
         directness = float(np.average(progressive, weights=weights))
 
         # Form trend: slope of xG balance over last 5 matches

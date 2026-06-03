@@ -110,8 +110,7 @@ def generate_match_report(
         )
         if match_info.empty:
             raise ValueError(
-                f"Match {match_id} not found in database. "
-                "Please run the ingestion pipeline first: uv run fb-ingest"
+                f"Match {match_id} not found in database. Please run the ingestion pipeline first: uv run fb-ingest"
             )
 
         # Fetch team stats — handle missing view gracefully
@@ -209,10 +208,7 @@ def generate_opponent_report(
     report = build_opponent_report(team_id, season_id, engine)
 
     # Check if any data was returned
-    all_empty = all(
-        report[key].empty
-        for key in ("attack_patterns", "defensive_shape", "key_players")
-    )
+    all_empty = all(report[key].empty for key in ("attack_patterns", "defensive_shape", "key_players"))
     if all_empty:
         raise ValueError(
             f"No data available for team_id={team_id}, season_id={season_id}. "
@@ -295,14 +291,10 @@ def main() -> None:
     """CLI entry point for PDF report generation."""
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     parser = argparse.ArgumentParser(description="Generate PDF reports")
-    parser.add_argument(
-        "--type", choices=["match", "opponent", "player"], required=True
-    )
+    parser.add_argument("--type", choices=["match", "opponent", "player"], required=True)
     parser.add_argument("--match-id", type=int, help="Match ID (for match reports)")
     parser.add_argument("--team-id", type=int, help="Team ID (for opponent reports)")
     parser.add_argument("--player-id", type=int, help="Player ID (for player reports)")

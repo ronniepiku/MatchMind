@@ -98,9 +98,7 @@ opponent_layout = dbc.Container(
                             [
                                 dbc.Col(
                                     [
-                                        dbc.Label(
-                                            "Team", html_for="opponent-team-dropdown"
-                                        ),
+                                        dbc.Label("Team", html_for="opponent-team-dropdown"),
                                         dcc.Dropdown(
                                             id="opponent-team-dropdown",
                                             placeholder="Search for a team...",
@@ -219,9 +217,7 @@ player_layout = dbc.Container(
                             [
                                 dbc.Col(
                                     [
-                                        dbc.Label(
-                                            "Team", html_for="player-team-dropdown"
-                                        ),
+                                        dbc.Label("Team", html_for="player-team-dropdown"),
                                         dcc.Dropdown(
                                             id="player-team-dropdown",
                                             placeholder="Search for a team...",
@@ -233,9 +229,7 @@ player_layout = dbc.Container(
                                 ),
                                 dbc.Col(
                                     [
-                                        dbc.Label(
-                                            "Season", html_for="player-season-dropdown"
-                                        ),
+                                        dbc.Label("Season", html_for="player-season-dropdown"),
                                         dcc.Dropdown(
                                             id="player-season-dropdown",
                                             placeholder="Select a season...",
@@ -299,9 +293,7 @@ player_layout = dbc.Container(
                                 dbc.Card(
                                     [
                                         dbc.CardHeader("Rolling Form (xG & xA)"),
-                                        dbc.CardBody(
-                                            dcc.Graph(id="player-rolling-chart")
-                                        ),
+                                        dbc.CardBody(dcc.Graph(id="player-rolling-chart")),
                                     ]
                                 ),
                             ],
@@ -363,9 +355,7 @@ scorecard_layout = dbc.Container(
                                 ),
                                 dbc.Col(
                                     [
-                                        dbc.Label(
-                                            "Season", html_for="sc-season-dropdown"
-                                        ),
+                                        dbc.Label("Season", html_for="sc-season-dropdown"),
                                         dcc.Dropdown(
                                             id="sc-season-dropdown",
                                             placeholder="Select a season...",
@@ -409,9 +399,7 @@ scorecard_layout = dbc.Container(
                                 dbc.Card(
                                     [
                                         dbc.CardHeader("Possession Style Distribution"),
-                                        dbc.CardBody(
-                                            dcc.Graph(id="sc-possession-chart")
-                                        ),
+                                        dbc.CardBody(dcc.Graph(id="sc-possession-chart")),
                                     ]
                                 ),
                             ],
@@ -516,9 +504,7 @@ home_layout = dbc.Container(
                                                         "Player Performance",
                                                         className="card-title",
                                                     ),
-                                                    html.P(
-                                                        "Individual metrics, rolling form, and radar comparisons."
-                                                    ),
+                                                    html.P("Individual metrics, rolling form, and radar comparisons."),
                                                     dbc.Button(
                                                         "Open",
                                                         href="/player",
@@ -593,13 +579,12 @@ home_layout = dbc.Container(
 @callback(Output("page-content", "children"), Input("url", "pathname"))
 def display_page(pathname: str) -> html.Div:
     """Route URL to page layout."""
-    if pathname == "/opponent":
-        return opponent_layout
-    elif pathname == "/player":
-        return player_layout
-    elif pathname == "/scorecard":
-        return scorecard_layout
-    return home_layout
+    pages = {
+        "/opponent": opponent_layout,
+        "/player": player_layout,
+        "/scorecard": scorecard_layout,
+    }
+    return pages.get(pathname, home_layout)
 
 
 # =============================================================================
@@ -763,9 +748,7 @@ def update_opponent_report(
                 size="sm",
             )
         else:
-            attack_table = html.P(
-                "No attack pattern data found.", className="text-muted"
-            )
+            attack_table = html.P("No attack pattern data found.", className="text-muted")
 
         # Defensive shape bar chart
         if not report["defensive_shape"].empty:
@@ -797,9 +780,7 @@ def update_opponent_report(
                 size="sm",
             )
         else:
-            key_players_table = html.P(
-                "No key player data found.", className="text-muted"
-            )
+            key_players_table = html.P("No key player data found.", className="text-muted")
 
         status = dbc.Alert(
             f"Report generated successfully — {availability['match_count']} matches analysed.",
@@ -917,16 +898,12 @@ def update_player_performance(
         if team_id:
             squad = get_squad_comparison(engine, team_id, season_id)
             squad_table = (
-                dbc.Table.from_dataframe(
-                    squad, striped=True, bordered=True, hover=True, size="sm"
-                )
+                dbc.Table.from_dataframe(squad, striped=True, bordered=True, hover=True, size="sm")
                 if not squad.empty
                 else html.P("No squad data available.", className="text-muted")
             )
         else:
-            squad_table = html.P(
-                "Select a team to view squad comparison.", className="text-muted"
-            )
+            squad_table = html.P("Select a team to view squad comparison.", className="text-muted")
 
         status = dbc.Alert(
             f"Analysis complete — {availability['match_count']} matches analysed.",
@@ -1156,9 +1133,7 @@ def update_scorecard(
             sp_df = set_pieces_to_dataframe(sequences)
             efficiency = compute_set_piece_efficiency(sp_df, team_id)
             sp_records = [
-                {"Metric": k.replace("_", " ").title(), "Value": v}
-                for k, v in efficiency.items()
-                if k != "team_id"
+                {"Metric": k.replace("_", " ").title(), "Value": v} for k, v in efficiency.items() if k != "team_id"
             ]
             sp_table = dbc.Table.from_dataframe(
                 pd.DataFrame(sp_records),

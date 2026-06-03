@@ -66,7 +66,7 @@ class AnalyticalQueryLibrary:
     injection. Only registered queries can be executed.
     """
 
-    def __init__(self, engine: Engine | None = None):
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine or get_engine()
         self._queries: dict[str, AnalyticalQuery] = {}
         self._register_all()
@@ -122,9 +122,7 @@ class AnalyticalQueryLibrary:
             ValueError: If query_id not found or parameters invalid.
         """
         if query_id not in self._queries:
-            raise ValueError(
-                f"Unknown query '{query_id}'. Use list_queries() to see available queries."
-            )
+            raise ValueError(f"Unknown query '{query_id}'. Use list_queries() to see available queries.")
 
         query = self._queries[query_id]
 
@@ -132,34 +130,26 @@ class AnalyticalQueryLibrary:
         validated = self._validate_params(query, parameters)
 
         # Execute
-        logger.info(
-            f"Executing query '{query_id}' with params: {list(validated.keys())}"
-        )
+        logger.info(f"Executing query '{query_id}' with params: {list(validated.keys())}")
         with self._engine.connect() as conn:
             df = pd.read_sql(text(query.sql), conn, params=validated)
 
         return df
 
-    def execute_to_dict(
-        self, query_id: str, parameters: dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def execute_to_dict(self, query_id: str, parameters: dict[str, Any]) -> list[dict[str, Any]]:
         """Execute query and return as list of dicts (JSON-serialisable)."""
         df = self.execute(query_id, parameters)
         # Convert numpy types to Python native
         return df.where(df.notna(), None).to_dict(orient="records")
 
-    def _validate_params(
-        self, query: AnalyticalQuery, params: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _validate_params(self, query: AnalyticalQuery, params: dict[str, Any]) -> dict[str, Any]:
         """Validate and coerce parameters."""
         validated = {}
         for p in query.parameters:
             if p.name in params:
                 validated[p.name] = params[p.name]
             elif p.required and p.default is None:
-                raise ValueError(
-                    f"Missing required parameter '{p.name}' for query '{query.query_id}'."
-                )
+                raise ValueError(f"Missing required parameter '{p.name}' for query '{query.query_id}'.")
             elif p.default is not None:
                 validated[p.name] = p.default
 
@@ -292,9 +282,7 @@ class AnalyticalQueryLibrary:
             parameters=[
                 QueryParameter("team_id", "int", "Team to analyse"),
                 QueryParameter("season_id", "int", "Season"),
-                QueryParameter(
-                    "player_id", "int", "Specific player (optional)", required=False
-                ),
+                QueryParameter("player_id", "int", "Specific player (optional)", required=False),
             ],
             sql="""
                 SELECT

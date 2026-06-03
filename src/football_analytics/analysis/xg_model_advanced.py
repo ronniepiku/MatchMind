@@ -135,7 +135,9 @@ def train_advanced_xg_model(
 
     logger.info(
         "Training advanced xG model (%s): %d shots, %.1f%% goals",
-        backend, len(X), y.mean() * 100,
+        backend,
+        len(X),
+        y.mean() * 100,
     )
 
     # Select base estimator
@@ -232,9 +234,7 @@ def train_advanced_xg_model(
     )
 
 
-def _compute_feature_importance(
-    model: Any, feature_cols: list[str], backend: str
-) -> pd.DataFrame:
+def _compute_feature_importance(model: Any, feature_cols: list[str], backend: str) -> pd.DataFrame:
     """Extract feature importance from gradient boosting model."""
     if backend == "hist":
         # HistGradient doesn't have feature_importances_ before fit in some versions
@@ -245,10 +245,16 @@ def _compute_feature_importance(
     else:
         importances = model.feature_importances_
 
-    return pd.DataFrame({
-        "feature": feature_cols,
-        "importance": importances,
-    }).sort_values("importance", ascending=False).reset_index(drop=True)
+    return (
+        pd.DataFrame(
+            {
+                "feature": feature_cols,
+                "importance": importances,
+            }
+        )
+        .sort_values("importance", ascending=False)
+        .reset_index(drop=True)
+    )
 
 
 def predict_advanced_xg(model: Any, shots_df: pd.DataFrame) -> np.ndarray:
@@ -288,15 +294,17 @@ def compare_models(
     advanced_preds = predict_advanced_xg(advanced_model, shots_df)
     actual = (shots_df["shot_outcome"] == "Goal").astype(int)
 
-    comparison = pd.DataFrame({
-        "minute": shots_df["minute"],
-        "actual_goal": actual,
-        "baseline_xg": baseline_preds,
-        "advanced_xg": advanced_preds,
-        "statsbomb_xg": shots_df.get("xg"),
-        "baseline_error": np.abs(actual - baseline_preds),
-        "advanced_error": np.abs(actual - advanced_preds),
-    })
+    comparison = pd.DataFrame(
+        {
+            "minute": shots_df["minute"],
+            "actual_goal": actual,
+            "baseline_xg": baseline_preds,
+            "advanced_xg": advanced_preds,
+            "statsbomb_xg": shots_df.get("xg"),
+            "baseline_error": np.abs(actual - baseline_preds),
+            "advanced_error": np.abs(actual - advanced_preds),
+        }
+    )
 
     # Summary row
     summary = {
@@ -306,18 +314,26 @@ def compare_models(
         "advanced_auc": roc_auc_score(actual, advanced_preds),
         "improvement_brier_pct": round(
             (brier_score_loss(actual, baseline_preds) - brier_score_loss(actual, advanced_preds))
-            / brier_score_loss(actual, baseline_preds) * 100, 1
+            / brier_score_loss(actual, baseline_preds)
+            * 100,
+            1,
         ),
         "improvement_auc_pct": round(
             (roc_auc_score(actual, advanced_preds) - roc_auc_score(actual, baseline_preds))
-            / roc_auc_score(actual, baseline_preds) * 100, 1
+            / roc_auc_score(actual, baseline_preds)
+            * 100,
+            1,
         ),
     }
 
     logger.info(
         "Model comparison: Brier %.4f→%.4f (%.1f%% improvement), AUC %.4f→%.4f (%.1f%%)",
-        summary["baseline_brier"], summary["advanced_brier"], summary["improvement_brier_pct"],
-        summary["baseline_auc"], summary["advanced_auc"], summary["improvement_auc_pct"],
+        summary["baseline_brier"],
+        summary["advanced_brier"],
+        summary["improvement_brier_pct"],
+        summary["baseline_auc"],
+        summary["advanced_auc"],
+        summary["improvement_auc_pct"],
     )
 
     return comparison

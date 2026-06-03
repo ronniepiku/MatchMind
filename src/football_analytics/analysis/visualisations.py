@@ -125,9 +125,7 @@ def plot_passing_network(
         )
 
     # Plot nodes (player positions)
-    node_size = (
-        avg_positions["passes_made"] / avg_positions["passes_made"].max() * 400 + 100
-    )
+    node_size = avg_positions["passes_made"] / avg_positions["passes_made"].max() * 400 + 100
     pitch.scatter(
         avg_positions["avg_x"],
         avg_positions["avg_y"],
@@ -296,7 +294,5 @@ def plot_team_trend(
         template="plotly_white",
     )
     fig.update_traces(line=dict(width=2))
-    fig.update_layout(
-        xaxis_title="Match Date", yaxis_title=metric.replace("_", " ").title()
-    )
+    fig.update_layout(xaxis_title="Match Date", yaxis_title=metric.replace("_", " ").title())
     return fig

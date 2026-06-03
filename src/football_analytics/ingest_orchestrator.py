@@ -17,7 +17,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -52,7 +52,7 @@ class IngestionOrchestrator:
     incremental ingestion across all active competitions.
     """
 
-    def __init__(self, engine: Engine | None = None):
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = engine or get_engine()
 
     def register_competition(
@@ -145,8 +145,7 @@ class IngestionOrchestrator:
                 "matches_synced": c.matches_synced,
                 "total_matches": c.total_matches,
                 "last_sync": c.last_sync.isoformat() if c.last_sync else None,
-                "is_complete": c.matches_synced >= c.total_matches
-                and c.total_matches > 0,
+                "is_complete": c.matches_synced >= c.total_matches and c.total_matches > 0,
                 "priority": c.priority,
             }
             for c in comps
@@ -166,9 +165,7 @@ class IngestionOrchestrator:
 
         for comp in competitions:
             try:
-                result = self.sync_competition(
-                    comp.competition_id, comp.season_id, force=force
-                )
+                result = self.sync_competition(comp.competition_id, comp.season_id, force=force)
                 results.append(result)
             except Exception as exc:
                 logger.error(f"Failed to sync {comp.competition_name}: {exc}")
@@ -206,8 +203,6 @@ class IngestionOrchestrator:
             Sync result summary.
         """
         from football_analytics.ingest import (
-            fetch_events,
-            fetch_lineups,
             fetch_matches,
             ingest_full_pipeline,
         )
@@ -219,20 +214,14 @@ class IngestionOrchestrator:
         # Determine which matches are already ingested
         if not force:
             existing_ids = self._get_existing_match_ids(competition_id, season_id)
-            new_matches = available_matches[
-                ~available_matches["match_id"].isin(existing_ids)
-            ]
+            new_matches = available_matches[~available_matches["match_id"].isin(existing_ids)]
         else:
             new_matches = available_matches
 
         new_count = len(new_matches)
         if new_count == 0:
-            logger.info(
-                f"Competition {competition_id}/{season_id}: already up to date."
-            )
-            self._update_sync_status(
-                competition_id, season_id, total_available, total_available
-            )
+            logger.info(f"Competition {competition_id}/{season_id}: already up to date.")
+            self._update_sync_status(competition_id, season_id, total_available, total_available)
             return {
                 "competition_id": competition_id,
                 "season_id": season_id,
@@ -264,9 +253,7 @@ class IngestionOrchestrator:
 
         # Update registry
         synced_total = (total_available - new_count) + ingested
-        self._update_sync_status(
-            competition_id, season_id, synced_total, total_available
-        )
+        self._update_sync_status(competition_id, season_id, synced_total, total_available)
 
         # Trigger rating update for new data
         self._trigger_rating_update(competition_id, season_id)
@@ -392,18 +379,12 @@ def main() -> None:
     """
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="MatchMind multi-competition ingestion"
-    )
-    parser.add_argument(
-        "--sync-all", action="store_true", help="Sync all active competitions"
-    )
+    parser = argparse.ArgumentParser(description="MatchMind multi-competition ingestion")
+    parser.add_argument("--sync-all", action="store_true", help="Sync all active competitions")
     parser.add_argument("--competition", type=int, help="Competition ID to sync")
     parser.add_argument("--season", type=int, help="Season ID to sync")
     parser.add_argument("--force", action="store_true", help="Force full re-ingestion")
-    parser.add_argument(
-        "--discover", action="store_true", help="List available competitions"
-    )
+    parser.add_argument("--discover", action="store_true", help="List available competitions")
     parser.add_argument("--status", action="store_true", help="Show sync status")
     parser.add_argument(
         "--register",
@@ -426,9 +407,7 @@ def main() -> None:
 
     elif args.status:
         statuses = orchestrator.get_sync_status()
-        print(
-            f"\n{'Competition':<30} {'Synced':<10} {'Total':<10} {'Last Sync':<20} {'Status'}"
-        )
+        print(f"\n{'Competition':<30} {'Synced':<10} {'Total':<10} {'Last Sync':<20} {'Status'}")
         print("-" * 90)
         for s in statuses:
             status = "✓ Complete" if s["is_complete"] else "△ Partial"
@@ -446,21 +425,15 @@ def main() -> None:
 
     elif args.sync_all:
         result = orchestrator.sync_all(force=args.force)
-        print(
-            f"\nSync complete: {result['successful']} successful, {result['failed']} failed"
-        )
+        print(f"\nSync complete: {result['successful']} successful, {result['failed']} failed")
         for d in result["details"]:
             print(
                 f"  {d.get('competition_id', '?')}/{d.get('season_id', '?')}: {d.get('status', 'unknown')} ({d.get('new_matches', 0)} new)"
             )
 
     elif args.competition and args.season:
-        result = orchestrator.sync_competition(
-            args.competition, args.season, force=args.force
-        )
-        print(
-            f"\n{result['status']}: {result.get('new_matches', 0)} new matches ingested"
-        )
+        result = orchestrator.sync_competition(args.competition, args.season, force=args.force)
+        print(f"\n{result['status']}: {result.get('new_matches', 0)} new matches ingested")
         if result.get("errors"):
             print(f"  Errors: {result['errors']}")
 
