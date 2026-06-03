@@ -50,6 +50,24 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
+@app.on_event("startup")
+async def _run_migrations() -> None:
+    """Run Alembic migrations on startup (best-effort, non-blocking)."""
+    import subprocess
+
+    if os.getenv("DATABASE_URL") or os.getenv("POSTGRES_PASSWORD"):
+        try:
+            subprocess.run(
+                ["alembic", "upgrade", "head"],
+                timeout=30,
+                capture_output=True,
+                check=False,
+            )
+            logger.info("Alembic migrations applied successfully")
+        except Exception as exc:
+            logger.warning("Alembic migration skipped: %s", exc)
+
+
 # ─── Request Logging Middleware ─────────────────────────────────────────────
 
 

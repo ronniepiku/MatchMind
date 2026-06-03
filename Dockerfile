@@ -42,7 +42,7 @@ RUN useradd -r -s /bin/false appuser \
 USER appuser
 
 # Health check for container orchestrators
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/api/v1/health || exit 1
 
 # Expose API port (Railway sets PORT env var)
