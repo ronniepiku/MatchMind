@@ -16,18 +16,6 @@ const COMPETITIONS = [
 
 type CompetitionCode = (typeof COMPETITIONS)[number]["code"];
 
-const STATUS_COLORS: Record<string, string> = {
-    scheduled: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-    SCHEDULED: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-    TIMED: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    preview_generated: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    in_progress: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-    IN_PLAY: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-    completed: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-    FINISHED: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-    reviewed: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-};
-
 export default function MatchdayCalendar() {
     const [selectedCompetition, setSelectedCompetition] = useState<CompetitionCode>("PL");
     const queryClient = useQueryClient();
