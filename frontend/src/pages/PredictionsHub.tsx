@@ -4,12 +4,11 @@ import {
     fetchTeams,
     fetchSeasons,
     runSimulation,
-    fetchTeamRatings,
 } from "@/api/endpoints";
 import { Card, Select, Button, Loading, ErrorState, KPICard, Badge } from "@/components/shared";
 import { SimulationChart } from "@/components/charts";
 import { api } from "@/api";
-import type { SimulationResult, TeamRating } from "@/api/types";
+import type { TeamRating } from "@/api/types";
 
 type Tab = "simulate" | "ml-predict" | "ratings" | "tournament";
 

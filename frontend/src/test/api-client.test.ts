@@ -6,6 +6,7 @@ vi.stubGlobal("fetch", mockFetch);
 
 // Import after mocking
 const { default: api, ApiError } = await import("@/api/client");
+type ApiErrorType = InstanceType<typeof ApiError>;
 
 describe("API Client", () => {
     beforeEach(() => {
@@ -75,8 +76,8 @@ describe("API Client", () => {
             await api.get("/broken");
         } catch (e) {
             expect(e).toBeInstanceOf(ApiError);
-            expect((e as ApiError).message).toBe("Server error. Please try again later.");
-            expect((e as ApiError).message).not.toContain("DB error");
+            expect((e as ApiErrorType).message).toBe("Server error. Please try again later.");
+            expect((e as ApiErrorType).message).not.toContain("DB error");
         }
     });
 
