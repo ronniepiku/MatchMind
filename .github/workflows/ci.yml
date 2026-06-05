@@ -59,6 +59,7 @@ jobs:
         env:
           POSTGRES_HOST: ""
           POSTGRES_DB: ""
+          POSTGRES_PASSWORD: "ci_dummy"
 
       - name: Upload coverage
         if: matrix.python-version == '3.11'

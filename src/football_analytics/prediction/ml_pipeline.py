@@ -47,11 +47,13 @@ from football_analytics.db import get_engine
 
 logger = logging.getLogger(__name__)
 
-# Model artifact directory
-_MODELS_DIR = config.processed_dir / "models"
-
 # Current ML model version
 ML_MODEL_VERSION = "2.0.0"
+
+
+def _get_models_dir() -> Path:
+    """Lazily resolve models directory to avoid triggering config at import time."""
+    return config.processed_dir / "models"
 
 
 @dataclass
@@ -362,7 +364,7 @@ class MLMatchPredictor:
         self._feature_columns: list[str] = []
         self._label_encoder = LabelEncoder()
         self._metrics: MLModelMetrics | None = None
-        self._model_path = _MODELS_DIR / f"ml_predictor_v{ML_MODEL_VERSION}.pkl"
+        self._model_path = _get_models_dir() / f"ml_predictor_v{ML_MODEL_VERSION}.pkl"
 
     @property
     def is_trained(self) -> bool:
@@ -609,7 +611,7 @@ class MLMatchPredictor:
 
     def save(self) -> Path:
         """Persist trained model to disk."""
-        _MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        _get_models_dir().mkdir(parents=True, exist_ok=True)
         artifact = {
             "model": self._model,
             "feature_columns": self._feature_columns,
