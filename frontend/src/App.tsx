@@ -8,7 +8,7 @@ import {
   TeamScorecard,
   MatchAnalysis,
   PlayerComparison,
-  PredictionsHub,
+  SimulationsPage,
   MatchdayCalendar,
   AnalysisWorkbench,
 } from "@/pages";
@@ -23,7 +23,7 @@ export default function App() {
         <Route path="scorecard" element={<ErrorBoundary><TeamScorecard /></ErrorBoundary>} />
         <Route path="match" element={<ErrorBoundary><MatchAnalysis /></ErrorBoundary>} />
         <Route path="comparison" element={<ErrorBoundary><PlayerComparison /></ErrorBoundary>} />
-        <Route path="predictions" element={<ErrorBoundary><PredictionsHub /></ErrorBoundary>} />
+        <Route path="predictions" element={<ErrorBoundary><SimulationsPage /></ErrorBoundary>} />
         <Route path="simulation" element={<Navigate to="/predictions" replace />} />
         <Route path="matchday" element={<ErrorBoundary><MatchdayCalendar /></ErrorBoundary>} />
         <Route path="analysis" element={<ErrorBoundary><AnalysisWorkbench /></ErrorBoundary>} />

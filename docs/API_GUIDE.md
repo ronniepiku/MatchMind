@@ -2,7 +2,7 @@
 
 ## Overview
 
-MatchMind provides a **FastAPI** REST layer that serves the React frontend dashboard and supports external integrations. The API is fully documented with Pydantic validation, CORS support, and automatic OpenAPI documentation.
+MatchMind provides a **FastAPI** REST layer that serves the React frontend dashboard and supports external integrations. The API uses a modular route architecture (split into domain-specific route modules under `src/football_analytics/routes/`) with Pydantic validation, CORS support, rate limiting (slowapi), and automatic OpenAPI documentation.
 
 **Base URL**: `http://localhost:8080/api/v1` (or configured in `.env`)
 
@@ -11,6 +11,22 @@ MatchMind provides a **FastAPI** REST layer that serves the React frontend dashb
 **ReDoc**: `http://localhost:8080/redoc`
 
 **Primary Consumer**: The React frontend at `http://localhost:5173` (dev) or GitHub Pages (production)
+
+## Architecture
+
+The API is composed of domain-specific route modules:
+
+| Module | Prefix | Responsibility |
+|--------|--------|---------------|
+| `routes/health.py` | `/api/v1` | Health probes, readiness checks |
+| `routes/analysis.py` | `/api/v1` | xG prediction, player profiles, team analysis |
+| `routes/dashboard.py` | `/api/v1` | Frontend data queries (teams, seasons, matches) |
+| `routes/prediction.py` | `/api/v1` | Match prediction, ML pipeline, ratings |
+| `routes/matchday.py` | `/api/v1` | Fixtures, calendar, pre/post match |
+| `routes/executive.py` | `/api/v1` | Executive reports, ad-hoc SQL queries |
+| `routes/cache.py` | `/api/v1` | Cache stats, system validation |
+
+The main `api.py` handles app setup (lifespan, middleware, CORS, exception handling) and includes all route modules.
 
 ## Authentication & Security
 
@@ -28,14 +44,15 @@ CORS is configured via environment variables:
 ```bash
 # In .env
 CORS_ORIGINS=http://localhost:5173,https://yourdomain.github.io
-CORS_METHODS=GET,POST,OPTIONS
-CORS_HEADERS=Content-Type,Authorization
 ```
 
 Default (if not set):
-- Origins: `http://localhost:5173` (Vite dev server), `https://*.github.io` (GitHub Pages)
-- Methods: `GET,POST`
+- Origins: `http://localhost:5173` (Vite dev server)
+- Methods: `GET, POST, PUT`
+- Headers: `Content-Type, Authorization`
 - Credentials: Not allowed
+
+Only origins starting with `http://` or `https://` are accepted (validated at startup).
 
 ## Endpoints
 
@@ -469,12 +486,14 @@ curl -H "Authorization: Bearer your_api_key" \
 
 ---
 
-## Rate Limiting (Future)
+## Rate Limiting
 
-Expected rate limits (when implemented):
-- **Free tier**: 100 requests/minute
-- **Pro tier**: 1000 requests/minute
-- **Enterprise**: Custom limits
+Rate limiting is enforced via [slowapi](https://github.com/laurentS/slowapi):
+
+- **Default**: 60 requests/minute per IP address
+- **429 Too Many Requests** response when limit is exceeded
+
+Limits are configurable via the `Limiter` setup in `api.py`.
 
 ---
 
@@ -578,6 +597,13 @@ For issues or feature requests:
 ---
 
 ## API Changelog
+
+### v0.5.0 (May 2026)
+- ✅ Modular route architecture (7 domain-specific route modules)
+- ✅ Rate limiting via slowapi (60 req/min default)
+- ✅ Content-Security-Policy header (replaces deprecated X-XSS-Protection)
+- ✅ Request ID middleware for tracing
+- ✅ Consolidated database URL handling
 
 ### v0.3.0 (May 2026)
 - ✅ All endpoints implemented

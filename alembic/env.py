@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from football_analytics.config import normalise_database_url
 
 # Load .env for database URL construction
 load_dotenv()
@@ -16,11 +17,7 @@ config = context.config
 # Build database URL from environment variables — prefer DATABASE_URL if set
 _database_url = os.getenv("DATABASE_URL")
 if _database_url:
-    if _database_url.startswith("postgres://"):
-        _database_url = _database_url.replace("postgres://", "postgresql+psycopg2://", 1)
-    elif _database_url.startswith("postgresql://"):
-        _database_url = _database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-    _db_url = _database_url
+    _db_url = normalise_database_url(_database_url)
 else:
     _pw = os.getenv("POSTGRES_PASSWORD")
     if not _pw:

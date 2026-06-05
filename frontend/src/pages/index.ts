@@ -4,6 +4,6 @@ export { default as PlayerPerformance } from "./PlayerPerformance";
 export { default as TeamScorecard } from "./TeamScorecard";
 export { default as MatchAnalysis } from "./MatchAnalysis";
 export { default as PlayerComparison } from "./PlayerComparison";
-export { default as PredictionsHub } from "./PredictionsHub";
+export { default as SimulationsPage } from "./PredictionsHub";
 export { default as MatchdayCalendar } from "./MatchdayCalendar";
 export { default as AnalysisWorkbench } from "./AnalysisWorkbench";

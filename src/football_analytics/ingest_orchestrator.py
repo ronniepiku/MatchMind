@@ -92,7 +92,7 @@ class IngestionOrchestrator:
                     "priority": priority,
                 },
             )
-        logger.info(f"Registered competition: {name} ({competition_id}/{season_id})")
+        logger.info("Registered competition: %s (%d/%d)", name, competition_id, season_id)
 
     def deactivate_competition(self, competition_id: int, season_id: int) -> None:
         """Mark a competition as inactive (won't be synced)."""

@@ -89,9 +89,9 @@ Railway deploys automatically on every push to your default branch.
 curl https://matchmind-production.up.railway.app/api/v1/health
 # → {"status":"healthy","version":"0.5.0"}
 
-# Deep health check (verifies DB connectivity)
-curl https://matchmind-production.up.railway.app/api/v1/system/health/db
-# → {"status":"healthy","database":"connected"}
+# Readiness check (verifies DB connectivity)
+curl https://matchmind-production.up.railway.app/api/v1/ready
+# → {"status":"ready","database":"connected"}
 
 # OpenAPI docs
 open https://matchmind-production.up.railway.app/docs

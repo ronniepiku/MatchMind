@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, KPICard, Button, ErrorState, Badge } from "@/components/shared";
 import {
@@ -18,6 +18,7 @@ type CompetitionCode = (typeof COMPETITIONS)[number]["code"];
 
 export default function MatchdayCalendar() {
     const [selectedCompetition, setSelectedCompetition] = useState<CompetitionCode>("PL");
+    const [teamFilter, setTeamFilter] = useState("");
     const queryClient = useQueryClient();
 
     // Fetch external fixtures from football-data.org
@@ -47,6 +48,26 @@ export default function MatchdayCalendar() {
 
     const competitionInfo = COMPETITIONS.find((c) => c.code === selectedCompetition)!;
 
+    // Derive unique team names from fixtures for the filter
+    const teamNames = useMemo(() => {
+        if (!externalData?.fixtures) return [];
+        const names = new Set<string>();
+        for (const f of externalData.fixtures) {
+            names.add(f.home_team.name);
+            names.add(f.away_team.name);
+        }
+        return Array.from(names).sort();
+    }, [externalData]);
+
+    // Filter fixtures by selected team
+    const filteredFixtures = useMemo(() => {
+        if (!externalData?.fixtures) return [];
+        if (!teamFilter) return externalData.fixtures;
+        return externalData.fixtures.filter(
+            (f) => f.home_team.name === teamFilter || f.away_team.name === teamFilter
+        );
+    }, [externalData, teamFilter]);
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -75,11 +96,11 @@ export default function MatchdayCalendar() {
             </div>
 
             {/* Competition Selector */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {COMPETITIONS.map((comp) => (
                     <button
                         key={comp.code}
-                        onClick={() => setSelectedCompetition(comp.code)}
+                        onClick={() => { setSelectedCompetition(comp.code); setTeamFilter(""); }}
                         className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
                             selectedCompetition === comp.code
                                 ? "bg-accent-500/10 text-accent-500 ring-2 ring-accent-500/30"
@@ -90,6 +111,20 @@ export default function MatchdayCalendar() {
                         <span>{comp.name}</span>
                     </button>
                 ))}
+
+                {/* Team Filter */}
+                {teamNames.length > 0 && (
+                    <select
+                        value={teamFilter}
+                        onChange={(e) => setTeamFilter(e.target.value)}
+                        className="ml-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500"
+                    >
+                        <option value="">All teams</option>
+                        {teamNames.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+                )}
             </div>
 
             {/* Sync Status */}
@@ -111,18 +146,18 @@ export default function MatchdayCalendar() {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <KPICard
                     label="Total Upcoming"
-                    value={externalData?.count ?? 0}
+                    value={filteredFixtures.length}
                 />
                 <KPICard
                     label="This Week"
                     value={
-                        externalData?.fixtures.filter((f) => {
+                        filteredFixtures.filter((f) => {
                             if (!f.match_date) return false;
                             const d = new Date(f.match_date);
                             const now = new Date();
                             const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
                             return diff >= 0 && diff <= 7;
-                        }).length ?? 0
+                        }).length
                     }
                 />
                 <KPICard
@@ -162,13 +197,14 @@ export default function MatchdayCalendar() {
             )}
 
             {/* Fixtures List */}
-            {externalData && externalData.fixtures.length > 0 && (
+            {externalData && filteredFixtures.length > 0 && (
                 <Card>
                     <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
                         {competitionInfo.icon} {competitionInfo.name} — Upcoming Fixtures
+                        {teamFilter && <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">({teamFilter})</span>}
                     </h2>
                     <div className="space-y-2">
-                        {groupByMatchday(externalData.fixtures).map(([matchday, fixtures]) => (
+                        {groupByMatchday(filteredFixtures).map(([matchday, fixtures]) => (
                             <div key={matchday} className="mb-4">
                                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                                     {matchday}
@@ -184,7 +220,7 @@ export default function MatchdayCalendar() {
                 </Card>
             )}
 
-            {externalData && externalData.fixtures.length === 0 && !loadingExternal && (
+            {externalData && filteredFixtures.length === 0 && !loadingExternal && (
                 <Card>
                     <div className="py-8 text-center text-[var(--text-muted)]">
                         <p className="text-lg font-medium">No upcoming fixtures</p>

@@ -24,7 +24,7 @@ interface SidebarProps {
 
 const navigation = [
     { name: "Overview", path: "/", icon: LayoutDashboard },
-    { name: "Predictions & Sim", path: "/predictions", icon: Brain },
+    { name: "Simulations", path: "/predictions", icon: Brain },
     { name: "Matchday", path: "/matchday", icon: Calendar },
     { name: "Analysis Workbench", path: "/analysis", icon: FlaskConical },
     { name: "Opponent Profile", path: "/opponent", icon: Target },

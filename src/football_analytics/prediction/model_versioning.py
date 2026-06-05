@@ -27,11 +27,12 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from football_analytics.db import get_engine
+from football_analytics.prediction.ml_pipeline import ML_MODEL_VERSION
 
 logger = logging.getLogger(__name__)
 
-# Current model version — bump when algorithm changes
-MODEL_VERSION = "1.0.0"
+# Re-use the canonical model version from ml_pipeline
+MODEL_VERSION = ML_MODEL_VERSION
 
 
 @dataclass
