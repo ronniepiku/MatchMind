@@ -264,7 +264,7 @@ def sync_competition_fixtures(competition_code: str) -> dict[str, Any]:
         return {"competition": competition.display_name, "code": code, **result}
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Fixture sync failed for %s", code)
         raise HTTPException(status_code=502, detail="External API error")
 
@@ -306,6 +306,6 @@ def get_external_fixtures(competition_code: str) -> dict[str, Any]:
         }
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("External fixture fetch failed for %s", code)
         raise HTTPException(status_code=502, detail="External API error")
