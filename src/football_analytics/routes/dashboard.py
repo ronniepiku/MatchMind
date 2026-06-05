@@ -453,7 +453,11 @@ async def get_team_scorecard(
         {"label": "Total xG", "value": round(total_xg, 2), "unit": ""},
         {"label": "xG/Match", "value": round(total_xg / max(n_matches, 1), 2), "unit": ""},
         {"label": "Possession Chains", "value": profile.get("total_chains", 0), "unit": ""},
-        {"label": "Dangerous Poss %", "value": round(profile.get("dangerous_possession_rate", 0) * 100, 1), "unit": "%"},
+        {
+            "label": "Dangerous Poss %",
+            "value": round(profile.get("dangerous_possession_rate", 0) * 100, 1),
+            "unit": "%",
+        },
     ]
 
     possession_profile = [
@@ -548,9 +552,13 @@ async def get_match_shots(match_id: int = Query(...)) -> list[dict[str, Any]]:
             params={"match_id": match_id},
         )
     outcome_map = {
-        "goal": "goal", "saved": "saved", "blocked": "blocked",
-        "off target": "off_target", "off_target": "off_target",
-        "post": "post", "wayward": "off_target",
+        "goal": "goal",
+        "saved": "saved",
+        "blocked": "blocked",
+        "off target": "off_target",
+        "off_target": "off_target",
+        "post": "post",
+        "wayward": "off_target",
     }
     df["outcome"] = df["outcome"].map(lambda x: outcome_map.get(x, "off_target"))
     return df.to_dict(orient="records")
@@ -796,7 +804,9 @@ async def simulate_match_v2(request: Request, sim_req: SimulationV2Request) -> d
         elif row["team_id"] == sim_req.away_team_id:
             away_name = row["team_name"]
 
-    result = simulate_match(home_xg=home_xg, away_xg=away_xg, home_team=home_name, away_team=away_name, n_simulations=10000)
+    result = simulate_match(
+        home_xg=home_xg, away_xg=away_xg, home_team=home_name, away_team=away_name, n_simulations=10000
+    )
 
     top_scores = sorted(result.scoreline_probabilities.items(), key=lambda x: x[1], reverse=True)[:15]
     scoreline_dist = [{"score": f"{h}-{a}", "probability": round(prob, 4)} for (h, a), prob in top_scores]

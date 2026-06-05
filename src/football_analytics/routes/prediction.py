@@ -97,8 +97,7 @@ async def predict_match(request: Request, pred_req: MatchPredictionRequest) -> d
         "venue_type": prediction.venue_type,
         "n_simulations": prediction.n_simulations,
         "key_factors": [
-            {"dimension": f.dimension, "description": f.description, "impact": f.impact}
-            for f in prediction.key_factors
+            {"dimension": f.dimension, "description": f.description, "impact": f.impact} for f in prediction.key_factors
         ],
         "head_to_head": (
             {
@@ -291,7 +290,7 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
 @router.post("/predict/ml")
 async def ml_predict_match(request: Request, pred_req: MLPredictionRequest) -> dict[str, Any]:
     """Predict match outcome using gradient-boosted ML model."""
-    from football_analytics.prediction.ml_pipeline import ML_MODEL_VERSION, MLMatchPredictor
+    from football_analytics.prediction.ml_pipeline import MLMatchPredictor
 
     predictor = MLMatchPredictor()
     if not predictor.load():
@@ -303,7 +302,7 @@ async def ml_predict_match(request: Request, pred_req: MLPredictionRequest) -> d
             away_team_id=pred_req.away_team_id,
             season_ids=pred_req.season_ids,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("ML prediction failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
