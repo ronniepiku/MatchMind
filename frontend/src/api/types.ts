@@ -346,3 +346,37 @@ export interface CacheStats {
     oldest_seconds_ago: number | null;
     newest_seconds_ago: number | null;
 }
+
+// ─── External Fixtures ────────────────────────────────────
+export interface SupportedCompetition {
+    code: string;
+    name: string;
+    id: number;
+}
+
+export interface ExternalFixture {
+    external_id: number;
+    match_date: string | null;
+    kick_off: string | null;
+    home_team: { id: number; name: string };
+    away_team: { id: number; name: string };
+    matchday: number;
+    stage: string;
+    status: string;
+    competition_name: string;
+}
+
+export interface ExternalFixturesResponse {
+    competition: string;
+    code: string;
+    count: number;
+    fixtures: ExternalFixture[];
+}
+
+export interface SyncResult {
+    competition: string;
+    code: string;
+    created: number;
+    skipped: number;
+    total: number;
+}

@@ -287,58 +287,68 @@ def init_schema(engine: Engine) -> None:
 
 
 def bulk_load_teams(engine: Engine, teams: pd.DataFrame) -> None:
-    """Upsert teams into the database (with country if available)."""
+    """Upsert teams into the database using batch executemany."""
     if teams.empty:
         return
+    records = []
+    for _, row in teams.iterrows():
+        country = row.get("country")
+        if pd.isna(country) if isinstance(country, float) else country is None:
+            country = None
+        records.append(
+            {
+                "team_id": int(row["team_id"]),
+                "team_name": row["team_name"],
+                "country": country,
+            }
+        )
+
     with engine.begin() as conn:
-        for _, row in teams.iterrows():
-            country = row.get("country")
-            if pd.isna(country) if isinstance(country, float) else country is None:
-                country = None
-            conn.execute(
-                text("""
-                    INSERT INTO teams (team_id, team_name, country)
-                    VALUES (:team_id, :team_name, :country)
-                    ON CONFLICT (team_id) DO UPDATE SET
-                        country = COALESCE(teams.country, EXCLUDED.country)
-                """),
-                {
-                    "team_id": int(row["team_id"]),
-                    "team_name": row["team_name"],
-                    "country": country,
-                },
-            )
+        conn.execute(
+            text("""
+                INSERT INTO teams (team_id, team_name, country)
+                VALUES (:team_id, :team_name, :country)
+                ON CONFLICT (team_id) DO UPDATE SET
+                    country = COALESCE(teams.country, EXCLUDED.country)
+            """),
+            records,
+        )
 
 
 def bulk_load_players(engine: Engine, players: pd.DataFrame) -> None:
-    """Upsert players into the database (with nickname/country if available)."""
+    """Upsert players into the database using batch executemany."""
     if players.empty:
         return
-    records = players.drop_duplicates(subset=["player_id"]).to_dict("records")
+    deduped = players.drop_duplicates(subset=["player_id"]).to_dict("records")
+    records = []
+    for record in deduped:
+        nickname = record.get("player_nickname") or record.get("nickname")
+        country = record.get("player_country") or record.get("country")
+        # Handle NaN values
+        if isinstance(nickname, float) and pd.isna(nickname):
+            nickname = None
+        if isinstance(country, float) and pd.isna(country):
+            country = None
+        records.append(
+            {
+                "player_id": int(record["player_id"]),
+                "player_name": record["player_name"],
+                "nickname": nickname,
+                "country": country,
+            }
+        )
+
     with engine.begin() as conn:
-        for record in records:
-            nickname = record.get("player_nickname") or record.get("nickname")
-            country = record.get("player_country") or record.get("country")
-            # Handle NaN values
-            if isinstance(nickname, float) and pd.isna(nickname):
-                nickname = None
-            if isinstance(country, float) and pd.isna(country):
-                country = None
-            conn.execute(
-                text("""
-                    INSERT INTO players (player_id, player_name, nickname, country)
-                    VALUES (:player_id, :player_name, :nickname, :country)
-                    ON CONFLICT (player_id) DO UPDATE SET
-                        nickname = COALESCE(players.nickname, EXCLUDED.nickname),
-                        country = COALESCE(players.country, EXCLUDED.country)
-                """),
-                {
-                    "player_id": int(record["player_id"]),
-                    "player_name": record["player_name"],
-                    "nickname": nickname,
-                    "country": country,
-                },
-            )
+        conn.execute(
+            text("""
+                INSERT INTO players (player_id, player_name, nickname, country)
+                VALUES (:player_id, :player_name, :nickname, :country)
+                ON CONFLICT (player_id) DO UPDATE SET
+                    nickname = COALESCE(players.nickname, EXCLUDED.nickname),
+                    country = COALESCE(players.country, EXCLUDED.country)
+            """),
+            records,
+        )
 
 
 def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:

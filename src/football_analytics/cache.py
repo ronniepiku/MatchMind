@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -31,13 +32,16 @@ from football_analytics.config import config
 logger = logging.getLogger(__name__)
 
 # Cache directory — initialized lazily via _get_cache_dir()
+_cache_dir_lock = threading.Lock()
 CACHE_DIR: Path = None  # type: ignore[assignment]
 
 
 def _get_cache_dir() -> Path:
     global CACHE_DIR
     if CACHE_DIR is None:
-        CACHE_DIR = config.processed_dir / "cache"
+        with _cache_dir_lock:
+            if CACHE_DIR is None:
+                CACHE_DIR = config.processed_dir / "cache"
     return CACHE_DIR
 
 

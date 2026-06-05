@@ -11,6 +11,11 @@ export default defineConfig({
     },
   },
   base: "/MatchMind/",
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+  },
   build: {
     outDir: "dist",
     sourcemap: false,

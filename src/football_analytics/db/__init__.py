@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -36,6 +36,28 @@ def get_engine(echo: bool = False) -> Engine:
         pool_recycle=3600,
     )
     return _engine
+
+
+def reset_engine() -> None:
+    """Dispose the current engine and clear the singleton.
+
+    Useful for test teardown or reconnecting after a database restart.
+    """
+    global _engine
+    if _engine is not None:
+        _engine.dispose()
+        _engine = None
+
+
+def check_connectivity() -> bool:
+    """Check if the database is reachable. Returns True if healthy."""
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
 
 
 def get_session(engine: Engine | None = None) -> Session:

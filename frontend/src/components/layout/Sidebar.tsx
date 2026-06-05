@@ -7,7 +7,6 @@ import {
     Target,
     Activity,
     GitCompare,
-    Dice5,
     ChevronLeft,
     ChevronRight,
     Radar,
@@ -25,7 +24,7 @@ interface SidebarProps {
 
 const navigation = [
     { name: "Overview", path: "/", icon: LayoutDashboard },
-    { name: "Predictions", path: "/predictions", icon: Brain },
+    { name: "Predictions & Sim", path: "/predictions", icon: Brain },
     { name: "Matchday", path: "/matchday", icon: Calendar },
     { name: "Analysis Workbench", path: "/analysis", icon: FlaskConical },
     { name: "Opponent Profile", path: "/opponent", icon: Target },
@@ -33,7 +32,6 @@ const navigation = [
     { name: "Team Scorecard", path: "/scorecard", icon: Activity },
     { name: "Match Analysis", path: "/match", icon: Users },
     { name: "Player Comparison", path: "/comparison", icon: GitCompare },
-    { name: "Simulation", path: "/simulation", icon: Dice5 },
 ];
 
 export default function Sidebar({ collapsed, onToggle, onClose }: SidebarProps) {

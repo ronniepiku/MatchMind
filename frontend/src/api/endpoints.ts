@@ -26,6 +26,9 @@ import type {
     QueryListResponse,
     QueryResult,
     CacheStats,
+    SupportedCompetition,
+    ExternalFixturesResponse,
+    SyncResult,
 } from "./types";
 
 // ─── Reference Data ───────────────────────────────────────
@@ -147,6 +150,16 @@ export const fetchCalendar = (daysAhead = 14, daysBehind = 7) =>
 
 export const fetchPreMatchPack = (fixtureId: number) =>
     api.get<PreMatchPack>(`/matchday/fixtures/${fixtureId}/pre-match`);
+
+// ─── External Fixture Sync ────────────────────────────────
+export const fetchSupportedCompetitions = () =>
+    api.get<{ competitions: SupportedCompetition[] }>("/matchday/competitions");
+
+export const fetchExternalFixtures = (competitionCode: string) =>
+    api.get<ExternalFixturesResponse>(`/matchday/external/${competitionCode}`);
+
+export const syncCompetitionFixtures = (competitionCode: string) =>
+    api.get<SyncResult>(`/matchday/sync/${competitionCode}`);
 
 // ─── Executive Reporting ──────────────────────────────────
 export const fetchWeeklyBriefing = (teamId: number, seasonId?: number) =>

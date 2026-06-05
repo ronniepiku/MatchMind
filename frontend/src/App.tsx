@@ -1,5 +1,6 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout";
+import { ErrorBoundary } from "@/components/shared";
 import {
   Dashboard,
   OpponentProfile,
@@ -7,8 +8,7 @@ import {
   TeamScorecard,
   MatchAnalysis,
   PlayerComparison,
-  Simulation,
-  Predictions,
+  PredictionsHub,
   MatchdayCalendar,
   AnalysisWorkbench,
 } from "@/pages";
@@ -17,16 +17,16 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="opponent" element={<OpponentProfile />} />
-        <Route path="player" element={<PlayerPerformance />} />
-        <Route path="scorecard" element={<TeamScorecard />} />
-        <Route path="match" element={<MatchAnalysis />} />
-        <Route path="comparison" element={<PlayerComparison />} />
-        <Route path="simulation" element={<Simulation />} />
-        <Route path="predictions" element={<Predictions />} />
-        <Route path="matchday" element={<MatchdayCalendar />} />
-        <Route path="analysis" element={<AnalysisWorkbench />} />
+        <Route index element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+        <Route path="opponent" element={<ErrorBoundary><OpponentProfile /></ErrorBoundary>} />
+        <Route path="player" element={<ErrorBoundary><PlayerPerformance /></ErrorBoundary>} />
+        <Route path="scorecard" element={<ErrorBoundary><TeamScorecard /></ErrorBoundary>} />
+        <Route path="match" element={<ErrorBoundary><MatchAnalysis /></ErrorBoundary>} />
+        <Route path="comparison" element={<ErrorBoundary><PlayerComparison /></ErrorBoundary>} />
+        <Route path="predictions" element={<ErrorBoundary><PredictionsHub /></ErrorBoundary>} />
+        <Route path="simulation" element={<Navigate to="/predictions" replace />} />
+        <Route path="matchday" element={<ErrorBoundary><MatchdayCalendar /></ErrorBoundary>} />
+        <Route path="analysis" element={<ErrorBoundary><AnalysisWorkbench /></ErrorBoundary>} />
       </Route>
     </Routes>
   );
