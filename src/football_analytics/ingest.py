@@ -295,11 +295,13 @@ def bulk_load_teams(engine: Engine, teams: pd.DataFrame) -> None:
         country = row.get("country")
         if pd.isna(country) if isinstance(country, float) else country is None:
             country = None
-        records.append({
-            "team_id": int(row["team_id"]),
-            "team_name": row["team_name"],
-            "country": country,
-        })
+        records.append(
+            {
+                "team_id": int(row["team_id"]),
+                "team_name": row["team_name"],
+                "country": country,
+            }
+        )
 
     with engine.begin() as conn:
         conn.execute(
@@ -327,12 +329,14 @@ def bulk_load_players(engine: Engine, players: pd.DataFrame) -> None:
             nickname = None
         if isinstance(country, float) and pd.isna(country):
             country = None
-        records.append({
-            "player_id": int(record["player_id"]),
-            "player_name": record["player_name"],
-            "nickname": nickname,
-            "country": country,
-        })
+        records.append(
+            {
+                "player_id": int(record["player_id"]),
+                "player_name": record["player_name"],
+                "nickname": nickname,
+                "country": country,
+            }
+        )
 
     with engine.begin() as conn:
         conn.execute(
@@ -344,7 +348,7 @@ def bulk_load_players(engine: Engine, players: pd.DataFrame) -> None:
                     country = COALESCE(players.country, EXCLUDED.country)
             """),
             records,
-            )
+        )
 
 
 def bulk_load_events(engine: Engine, events_df: pd.DataFrame) -> None:

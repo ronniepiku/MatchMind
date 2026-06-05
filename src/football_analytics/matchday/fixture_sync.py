@@ -247,9 +247,7 @@ def sync_fixtures_to_db(
             logger.warning(f"Failed to create fixture {ext.external_id}: {e}")
             skipped += 1
 
-    logger.info(
-        f"Sync {competition.display_name}: created={created}, skipped={skipped}"
-    )
+    logger.info(f"Sync {competition.display_name}: created={created}, skipped={skipped}")
     return {"created": created, "skipped": skipped, "total": len(fixtures)}
 
 
@@ -266,11 +264,7 @@ def _get_existing_external_ids(competition: Competition) -> set[int]:
     try:
         with engine.connect() as conn:
             rows = conn.execute(query, {"comp_id": competition.internal_id}).fetchall()
-        return {
-            int(row[0].split("external_id:")[1])
-            for row in rows
-            if row[0] and "external_id:" in row[0]
-        }
+        return {int(row[0].split("external_id:")[1]) for row in rows if row[0] and "external_id:" in row[0]}
     except Exception:
         # Table may not exist yet
         return set()
@@ -278,7 +272,4 @@ def _get_existing_external_ids(competition: Competition) -> set[int]:
 
 def get_supported_competitions() -> list[dict[str, str]]:
     """Return list of supported competitions for frontend display."""
-    return [
-        {"code": c.value, "name": c.display_name, "id": c.internal_id}
-        for c in Competition
-    ]
+    return [{"code": c.value, "name": c.display_name, "id": c.internal_id} for c in Competition]

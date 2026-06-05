@@ -249,15 +249,25 @@ class MatchFeatureEngine:
     def _empty_features(self) -> dict[str, float]:
         """Return zeroed feature vector when no data is available."""
         return {
-            "xg_per_match": 0.0, "shots_per_match": 0.0, "shot_quality": 0.0,
-            "goals_per_match": 0.0, "big_chance_xg_per_match": 0.0,
-            "conversion_rate": 0.0, "xa_per_match": 0.0,
-            "key_passes_per_match": 0.0, "final_third_passes_per_match": 0.0,
-            "xg_conceded_per_match": 0.0, "shots_conceded_per_match": 0.0,
-            "goals_conceded_per_match": 0.0, "pressures_per_match": 0.0,
-            "high_press_ratio": 0.0, "pass_accuracy": 0.0,
-            "passes_per_match": 0.0, "points_per_match": 0.0,
-            "goal_difference_per_match": 0.0, "net_xg_per_match": 0.0,
+            "xg_per_match": 0.0,
+            "shots_per_match": 0.0,
+            "shot_quality": 0.0,
+            "goals_per_match": 0.0,
+            "big_chance_xg_per_match": 0.0,
+            "conversion_rate": 0.0,
+            "xa_per_match": 0.0,
+            "key_passes_per_match": 0.0,
+            "final_third_passes_per_match": 0.0,
+            "xg_conceded_per_match": 0.0,
+            "shots_conceded_per_match": 0.0,
+            "goals_conceded_per_match": 0.0,
+            "pressures_per_match": 0.0,
+            "high_press_ratio": 0.0,
+            "pass_accuracy": 0.0,
+            "passes_per_match": 0.0,
+            "points_per_match": 0.0,
+            "goal_difference_per_match": 0.0,
+            "net_xg_per_match": 0.0,
             "xg_overperformance": 0.0,
         }
 
@@ -387,9 +397,7 @@ class MLMatchPredictor:
         # Build dataset
         df = self._feature_engine.build_training_dataset(season_ids=season_ids)
         if df.empty or len(df) < 20:
-            raise ValueError(
-                f"Insufficient training data ({len(df)} matches). Need at least 20."
-            )
+            raise ValueError(f"Insufficient training data ({len(df)} matches). Need at least 20.")
 
         # Prepare features and labels
         feature_cols = [c for c in df.columns if c.startswith(("home_", "away_", "diff_"))]
@@ -464,12 +472,8 @@ class MLMatchPredictor:
         cal_error = self._compute_calibration_error(eval_probs, eval_y)
 
         # Feature importance from base model
-        importance = dict(
-            zip(feature_cols, base_model.feature_importances_, strict=False)
-        )
-        top_features = dict(
-            sorted(importance.items(), key=lambda x: x[1], reverse=True)[:15]
-        )
+        importance = dict(zip(feature_cols, base_model.feature_importances_, strict=False))
+        top_features = dict(sorted(importance.items(), key=lambda x: x[1], reverse=True)[:15])
 
         self._metrics = MLModelMetrics(
             brier_score=float(avg_brier),
@@ -497,10 +501,12 @@ class MLMatchPredictor:
         If model is not trained, falls back to feature-based heuristic.
         """
         home_features = self._feature_engine.compute_team_features(
-            team_id=home_team_id, season_id=season_id,
+            team_id=home_team_id,
+            season_id=season_id,
         )
         away_features = self._feature_engine.compute_team_features(
-            team_id=away_team_id, season_id=season_id,
+            team_id=away_team_id,
+            season_id=season_id,
         )
 
         # Get team names
@@ -535,9 +541,7 @@ class MLMatchPredictor:
 
             # Feature contributions (approximate via difference features)
             contributions = {
-                k.replace("diff_", ""): v
-                for k, v in feature_row.items()
-                if k.startswith("diff_") and abs(v) > 0.01
+                k.replace("diff_", ""): v for k, v in feature_row.items() if k.startswith("diff_") and abs(v) > 0.01
             }
         else:
             # Heuristic fallback using features directly

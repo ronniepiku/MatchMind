@@ -22,10 +22,7 @@ class TestSimulateMatch:
 
     def test_no_seed_produces_varying_results(self) -> None:
         """Without a seed, results should vary (probabilistically)."""
-        results = [
-            simulate_match(home_xg=1.5, away_xg=1.5, n_simulations=1000)
-            for _ in range(5)
-        ]
+        results = [simulate_match(home_xg=1.5, away_xg=1.5, n_simulations=1000) for _ in range(5)]
         # With 1000 sims and no seed, home_win_prob should not be identical across all runs
         home_probs = [r.home_win_prob for r in results]
         assert len(set(home_probs)) > 1, "All runs produced identical results without a seed"
