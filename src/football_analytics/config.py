@@ -27,13 +27,25 @@ def _get_password() -> str:
     return pw
 
 
+def normalise_database_url(url: str) -> str:
+    """Normalise a DATABASE_URL to a SQLAlchemy-compatible connection string.
+
+    Railway/Heroku use postgres:// but SQLAlchemy requires postgresql+psycopg2://.
+    """
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+
 @dataclass(frozen=True)
 class DatabaseConfig:
     """PostgreSQL connection parameters."""
 
     host: str = field(default_factory=lambda: os.getenv("POSTGRES_HOST", "localhost"))
     port: int = field(default_factory=lambda: int(os.getenv("POSTGRES_PORT", "5432")))
-    db: str = field(default_factory=lambda: os.getenv("POSTGRES_DB", "football_analytics"))
+    db: str = field(default_factory=lambda: os.getenv("POSTGRES_DB", "MatchMind"))
     user: str = field(default_factory=lambda: os.getenv("POSTGRES_USER", "analyst"))
     password: str = field(default_factory=_get_password)
 
@@ -45,12 +57,7 @@ class DatabaseConfig:
         """
         database_url = os.getenv("DATABASE_URL")
         if database_url:
-            # Railway uses postgres:// but SQLAlchemy needs postgresql://
-            if database_url.startswith("postgres://"):
-                database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
-            elif database_url.startswith("postgresql://"):
-                database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-            return database_url
+            return normalise_database_url(database_url)
         return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
 
@@ -62,8 +69,6 @@ class AppConfig:
     data_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data")
     raw_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data" / "raw")
     processed_dir: Path = field(default_factory=lambda: _PROJECT_ROOT / "data" / "processed")
-    dash_debug: bool = field(default_factory=lambda: os.getenv("DASH_DEBUG", "false").lower() == "true")
-    dash_port: int = field(default_factory=lambda: int(os.getenv("DASH_PORT", "8050")))
 
 
 class _LazyConfig:

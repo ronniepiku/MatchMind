@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, Button, ErrorState } from "@/components/shared";
 import { api } from "@/api";
+import { fetchTeams, fetchSeasons } from "@/api/endpoints";
 import type { QueryDefinition, QueryListResponse, QueryResult } from "@/api/types";
 
 export default function AnalysisWorkbench() {
@@ -12,6 +14,10 @@ export default function AnalysisWorkbench() {
     const [result, setResult] = useState<QueryResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Fetch teams and seasons for smart dropdowns
+    const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
+    const { data: seasons } = useQuery({ queryKey: ["seasons"], queryFn: fetchSeasons });
 
     const fetchQueries = useCallback(async () => {
         try {
@@ -169,18 +175,58 @@ export default function AnalysisWorkbench() {
                                     {selectedQuery.parameters.map((p) => (
                                         <div key={p.name}>
                                             <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
-                                                {p.name}
+                                                {p.name.replace(/_/g, " ")}
                                                 {p.required && <span className="text-red-500"> *</span>}
                                             </label>
-                                            <input
-                                                type={p.type === "int" || p.type === "float" ? "number" : "text"}
-                                                value={params[p.name] || ""}
-                                                onChange={(e) =>
-                                                    setParams({ ...params, [p.name]: e.target.value })
-                                                }
-                                                placeholder={p.description}
-                                                className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
-                                            />
+                                            {p.name.includes("team_id") ? (
+                                                <select
+                                                    value={params[p.name] || ""}
+                                                    onChange={(e) =>
+                                                        setParams({ ...params, [p.name]: e.target.value })
+                                                    }
+                                                    className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
+                                                >
+                                                    <option value="">Select team...</option>
+                                                    {(teams ?? []).map((t) => (
+                                                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                                                    ))}
+                                                </select>
+                                            ) : p.name.includes("season_id") ? (
+                                                <select
+                                                    value={params[p.name] || ""}
+                                                    onChange={(e) =>
+                                                        setParams({ ...params, [p.name]: e.target.value })
+                                                    }
+                                                    className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
+                                                >
+                                                    <option value="">{p.required ? "Select season..." : "All seasons"}</option>
+                                                    {(seasons ?? []).map((s) => (
+                                                        <option key={s.id} value={String(s.id)}>
+                                                            {s.competition_name} {s.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            ) : p.name.includes("player_id") ? (
+                                                <input
+                                                    type="number"
+                                                    value={params[p.name] || ""}
+                                                    onChange={(e) =>
+                                                        setParams({ ...params, [p.name]: e.target.value })
+                                                    }
+                                                    placeholder={p.description || "Player ID"}
+                                                    className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
+                                                />
+                                            ) : (
+                                                <input
+                                                    type={p.type === "int" || p.type === "float" ? "number" : "text"}
+                                                    value={params[p.name] || ""}
+                                                    onChange={(e) =>
+                                                        setParams({ ...params, [p.name]: e.target.value })
+                                                    }
+                                                    placeholder={p.description}
+                                                    className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
+                                                />
+                                            )}
                                         </div>
                                     ))}
                                 </div>

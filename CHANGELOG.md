@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] — 2026-06-03
+
+### Changed — Architecture Refactoring
+
+- **Split monolithic `api.py`** (~2600 lines) into 7 domain-specific route modules under `src/football_analytics/routes/`:
+  - `health.py` — Health probes, readiness checks
+  - `analysis.py` — xG prediction, player profiles, team analysis
+  - `dashboard.py` — Frontend data queries (teams, seasons, matches)
+  - `prediction.py` — Match prediction, ML pipeline, ratings
+  - `matchday.py` — Fixtures, calendar, pre/post match
+  - `executive.py` — Executive reports, ad-hoc SQL queries
+  - `cache.py` — Cache stats, system validation
+- **Slim `api.py`**: Now ~140 lines handling only app setup (lifespan, middleware, CORS, exception handling)
+- **Rate limiting**: Added slowapi with 60 req/min default limit
+- **Security header**: Replaced deprecated `X-XSS-Protection` with `Content-Security-Policy`
+- **Request ID middleware**: All responses include `X-Request-ID` for tracing
+- **Consolidated `normalise_database_url()`**: Single utility in `config.py` (used by api.py, alembic/env.py)
+- **Consolidated model version**: Single source of truth in `prediction/ml_pipeline.py`, re-exported through `prediction/__init__.py`
+- **Fixed DB name default**: Standardized to "MatchMind" (was "football_analytics" in some places)
+
+### Fixed
+
+- `api.py`: `model_version` field was set to `metrics.n_matches` instead of the actual version string
+- `api.py`: `_MODELS_DIR` imported as variable but was a function (`_get_models_dir()`)
+- `cache.py`: Fixed type annotation `CACHE_DIR: Path | None = None`
+- `ingest_orchestrator.py`: Fixed f-string in `logger.info()` call (used `%s` format correctly)
+- Removed duplicate `/system/health/db` endpoint (functionality merged into `/api/v1/ready`)
+
+### Changed — Dependencies
+
+- Moved heavy dependencies to optional groups in `pyproject.toml`:
+  - `notebooks` extra: jupyter, nbformat
+  - `viz` extra: matplotlib, mplsoccer
+  - `reports` extra: weasyprint, matplotlib, mplsoccer
+- Removed from core dependencies: dash, dash-bootstrap-components, jupyter, nbformat, matplotlib, mplsoccer, weasyprint
+
+### Removed
+
+- `src/football_analytics/dashboard/` — Removed (frontend is React on GitHub Pages)
+- `fb-dashboard` script entry point
+- Dead files: `analysis/xg_model_selection.py`, `prediction/model_versioning.py` duplicate logic
+
+---
+
 ## [0.5.0] — 2026-06-03
 
 ### Added — Prediction Engine (Phase 1)

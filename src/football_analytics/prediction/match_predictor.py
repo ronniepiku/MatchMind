@@ -21,6 +21,7 @@ from sqlalchemy.engine import Engine
 
 from football_analytics.analysis.simulation import simulate_match
 from football_analytics.db import get_engine
+from football_analytics.prediction.ml_pipeline import ML_MODEL_VERSION
 from football_analytics.prediction.team_rating import TeamRating, TeamRatingEngine
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ class MatchPrediction:
     head_to_head: HeadToHead | None = None
 
     # Metadata
-    model_version: str = "v1.0"
+    model_version: str = ML_MODEL_VERSION
     computed_at: date = field(default_factory=date.today)
 
 

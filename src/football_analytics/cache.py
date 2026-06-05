@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Cache directory — initialized lazily via _get_cache_dir()
 _cache_dir_lock = threading.Lock()
-CACHE_DIR: Path = None  # type: ignore[assignment]
+CACHE_DIR: Path | None = None
 
 
 def _get_cache_dir() -> Path:

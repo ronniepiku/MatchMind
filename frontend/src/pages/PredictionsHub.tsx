@@ -1,16 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-    fetchTeams,
-    fetchSeasons,
-    runSimulation,
-} from "@/api/endpoints";
+import { fetchTeams, fetchSeasons, runSimulation } from "@/api/endpoints";
 import { Card, Select, Button, Loading, ErrorState, KPICard, Badge } from "@/components/shared";
 import { SimulationChart } from "@/components/charts";
 import { api } from "@/api";
-import type { TeamRating } from "@/api/types";
+import type { SimulationResult, TeamRating } from "@/api/types";
 
-type Tab = "simulate" | "ml-predict" | "ratings" | "tournament";
+type Tab = "simulate" | "ratings" | "tournament";
 
 interface MLPredictionResult {
     home_team: { id: number; name: string };
@@ -25,37 +21,31 @@ interface MLPredictionResult {
     model_version: string;
 }
 
-interface MLModelStatus {
-    model_available: boolean;
-    model_version: string;
-    metrics: {
-        brier_score: number;
-        log_loss: number;
-        accuracy: number;
-        n_matches: number;
-    } | null;
+interface TournamentTeamResult {
+    team_id: number;
+    team_name: string;
+    winner_prob: number;
+    final_prob: number;
+    semi_final_prob: number;
+    expected_points?: number;
 }
 
-export default function PredictionsHub() {
+export default function SimulationsPage() {
     const [activeTab, setActiveTab] = useState<Tab>("simulate");
 
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-                    Predictions & Simulation
-                </h1>
+                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Simulations</h1>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Match outcome forecasting, Monte Carlo simulation, team ratings, and ML predictions
+                    Match outcome simulation combining Monte Carlo and ML models
                 </p>
             </div>
 
-            {/* Tab Navigation */}
             <div className="flex gap-2 border-b border-[var(--border-color)] pb-2">
                 {(
                     [
                         { id: "simulate", label: "Match Simulation" },
-                        { id: "ml-predict", label: "ML Prediction" },
                         { id: "ratings", label: "Team Ratings" },
                         { id: "tournament", label: "Tournament" },
                     ] as const
@@ -75,228 +65,69 @@ export default function PredictionsHub() {
             </div>
 
             {activeTab === "simulate" && <SimulationTab />}
-            {activeTab === "ml-predict" && <MLPredictionTab />}
             {activeTab === "ratings" && <RatingsTab />}
             {activeTab === "tournament" && <TournamentTab />}
         </div>
     );
 }
 
-// ─── Simulation Tab ──────────────────────────────────────────────────────────
+// ─── Unified Simulation Tab ──────────────────────────────────────────────────
 
 function SimulationTab() {
     const [homeTeamId, setHomeTeamId] = useState<number>();
     const [awayTeamId, setAwayTeamId] = useState<number>();
-    const [seasonId, setSeasonId] = useState<number>();
-    const [shouldRun, setShouldRun] = useState(false);
+    const [selectedSeasons, setSelectedSeasons] = useState<number[]>([]);
+    const [monteCarloResult, setMonteCarloResult] = useState<SimulationResult | null>(null);
+    const [mlResult, setMlResult] = useState<MLPredictionResult | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
     const { data: seasons } = useQuery({ queryKey: ["seasons"], queryFn: fetchSeasons });
-
-    const {
-        data: result,
-        isLoading,
-        error,
-        refetch,
-    } = useQuery({
-        queryKey: ["simulation", homeTeamId, awayTeamId, seasonId],
-        queryFn: () => runSimulation(homeTeamId!, awayTeamId!, seasonId!),
-        enabled: shouldRun && !!homeTeamId && !!awayTeamId && !!seasonId,
-    });
-
-    const handleRun = () => {
-        setShouldRun(true);
-        if (shouldRun) refetch();
-    };
 
     const homeTeamName = teams?.find((t) => t.id === homeTeamId)?.name ?? "Home";
     const awayTeamName = teams?.find((t) => t.id === awayTeamId)?.name ?? "Away";
 
-    return (
-        <div className="space-y-6">
-            <Card padding="md">
-                <p className="mb-4 text-xs text-[var(--text-muted)]">
-                    Monte Carlo simulation — 10,000 iterations using Poisson-based match model
-                </p>
-                <div className="flex flex-wrap items-end gap-4">
-                    <Select
-                        label="Home Team"
-                        options={(teams ?? [])
-                            .filter((t) => t.id !== awayTeamId)
-                            .map((t) => ({ value: t.id, label: t.name }))}
-                        value={homeTeamId}
-                        onChange={(v) => {
-                            setHomeTeamId(Number(v));
-                            setShouldRun(false);
-                        }}
-                        placeholder="Select home team..."
-                        className="w-full sm:w-52"
-                    />
-                    <div className="flex items-center pb-2 text-lg font-bold text-[var(--text-muted)]">
-                        vs
-                    </div>
-                    <Select
-                        label="Away Team"
-                        options={(teams ?? [])
-                            .filter((t) => t.id !== homeTeamId)
-                            .map((t) => ({ value: t.id, label: t.name }))}
-                        value={awayTeamId}
-                        onChange={(v) => {
-                            setAwayTeamId(Number(v));
-                            setShouldRun(false);
-                        }}
-                        placeholder="Select away team..."
-                        className="w-full sm:w-52"
-                    />
-                    <Select
-                        label="Season"
-                        options={(seasons ?? []).map((s) => ({
-                            value: s.id,
-                            label: `${s.competition_name} ${s.name}`,
-                        }))}
-                        value={seasonId}
-                        onChange={(v) => {
-                            setSeasonId(Number(v));
-                            setShouldRun(false);
-                        }}
-                        placeholder="Select season..."
-                        className="w-full sm:w-56"
-                    />
-                    <Button
-                        onClick={handleRun}
-                        disabled={!homeTeamId || !awayTeamId || !seasonId || homeTeamId === awayTeamId}
-                        loading={isLoading}
-                    >
-                        Run Simulation
-                    </Button>
-                </div>
-                {homeTeamId === awayTeamId && homeTeamId !== undefined && (
-                    <p className="mt-2 text-xs text-danger-500">
-                        Home and away teams must be different
-                    </p>
-                )}
-            </Card>
-
-            {isLoading && <Loading message="Running Monte Carlo simulation (10,000 iterations)..." />}
-            {error && <ErrorState onRetry={handleRun} />}
-
-            {result && (
-                <Card
-                    title={`${homeTeamName} vs ${awayTeamName}`}
-                    subtitle="Simulation results based on historical performance data"
-                >
-                    <SimulationChart result={result} homeTeam={homeTeamName} awayTeam={awayTeamName} />
-                </Card>
-            )}
-        </div>
-    );
-}
-
-// ─── ML Prediction Tab ───────────────────────────────────────────────────────
-
-function MLPredictionTab() {
-    const [homeTeamId, setHomeTeamId] = useState<number>();
-    const [awayTeamId, setAwayTeamId] = useState<number>();
-    const [seasonId, setSeasonId] = useState<number>();
-    const [prediction, setPrediction] = useState<MLPredictionResult | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [training, setTraining] = useState(false);
-
-    const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
-    const { data: seasons } = useQuery({ queryKey: ["seasons"], queryFn: fetchSeasons });
-
-    const { data: modelStatus, refetch: refetchStatus } = useQuery({
-        queryKey: ["ml-model-status"],
-        queryFn: () => api.get<MLModelStatus>("/predict/ml/status"),
-    });
-
-    const handlePredict = async () => {
-        if (!homeTeamId || !awayTeamId) return;
+    const handleRunSimulation = async () => {
+        if (!homeTeamId || !awayTeamId || selectedSeasons.length === 0) return;
         setLoading(true);
         setError(null);
+        setMonteCarloResult(null);
+        setMlResult(null);
+
+        const primarySeason = selectedSeasons[selectedSeasons.length - 1];
+
         try {
-            const result = await api.post<MLPredictionResult>("/predict/ml", {
-                home_team_id: homeTeamId,
-                away_team_id: awayTeamId,
-                season_id: seasonId,
-            });
-            setPrediction(result);
+            const [mcResult, mlPrediction] = await Promise.allSettled([
+                runSimulation(homeTeamId, awayTeamId, primarySeason),
+                api.post<MLPredictionResult>("/predict/ml", {
+                    home_team_id: homeTeamId,
+                    away_team_id: awayTeamId,
+                    season_id: primarySeason,
+                }),
+            ]);
+
+            if (mcResult.status === "fulfilled") setMonteCarloResult(mcResult.value);
+            if (mlPrediction.status === "fulfilled") setMlResult(mlPrediction.value);
+
+            if (mcResult.status === "rejected" && mlPrediction.status === "rejected") {
+                setError("Both simulation models failed. Check data availability.");
+            }
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Prediction failed");
+            setError(e instanceof Error ? e.message : "Simulation failed");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleTrain = async () => {
-        setTraining(true);
-        setError(null);
-        try {
-            await api.post("/predict/ml/train", { season_ids: null });
-            refetchStatus();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Training failed");
-        } finally {
-            setTraining(false);
-        }
+    const toggleSeason = (seasonId: number) => {
+        setSelectedSeasons((prev) =>
+            prev.includes(seasonId) ? prev.filter((id) => id !== seasonId) : [...prev, seasonId]
+        );
     };
 
     return (
         <div className="space-y-6">
-            {/* Model Status */}
-            <Card padding="md">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                            ML Model Status
-                        </h3>
-                        <p className="text-xs text-[var(--text-muted)]">
-                            Gradient-boosted ensemble with calibrated probabilities
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {modelStatus?.model_available ? (
-                            <Badge variant="success">Trained</Badge>
-                        ) : (
-                            <Badge variant="warning">Not Trained</Badge>
-                        )}
-                        <Button size="sm" variant="secondary" onClick={handleTrain} loading={training}>
-                            {training ? "Training..." : "Train Model"}
-                        </Button>
-                    </div>
-                </div>
-                {modelStatus?.metrics && (
-                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <div className="text-center">
-                            <p className="text-xs text-[var(--text-muted)]">Accuracy</p>
-                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                {(modelStatus.metrics.accuracy * 100).toFixed(1)}%
-                            </p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs text-[var(--text-muted)]">Brier Score</p>
-                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                {modelStatus.metrics.brier_score.toFixed(4)}
-                            </p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs text-[var(--text-muted)]">Log Loss</p>
-                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                {modelStatus.metrics.log_loss.toFixed(4)}
-                            </p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs text-[var(--text-muted)]">Matches Trained</p>
-                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                {modelStatus.metrics.n_matches}
-                            </p>
-                        </div>
-                    </div>
-                )}
-            </Card>
-
-            {/* Prediction Form */}
             <Card padding="md">
                 <div className="flex flex-wrap items-end gap-4">
                     <Select
@@ -322,111 +153,138 @@ function MLPredictionTab() {
                         placeholder="Select away team..."
                         className="w-full sm:w-52"
                     />
-                    <Select
-                        label="Season Context"
-                        options={(seasons ?? []).map((s) => ({
-                            value: s.id,
-                            label: `${s.competition_name} ${s.name}`,
-                        }))}
-                        value={seasonId}
-                        onChange={(v) => setSeasonId(Number(v))}
-                        placeholder="(optional)"
-                        className="w-full sm:w-56"
-                    />
+                </div>
+
+                <div className="mt-4">
+                    <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                        Season Context (select one or more)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        {(seasons ?? []).map((s) => (
+                            <button
+                                key={s.id}
+                                onClick={() => toggleSeason(s.id)}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                                    selectedSeasons.includes(s.id)
+                                        ? "bg-accent-500 text-white"
+                                        : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
+                                }`}
+                            >
+                                {s.competition_name} {s.name}
+                            </button>
+                        ))}
+                    </div>
+                    {selectedSeasons.length === 0 && (
+                        <p className="mt-1 text-xs text-[var(--text-muted)]">Select at least one season</p>
+                    )}
+                </div>
+
+                <div className="mt-4">
                     <Button
-                        onClick={handlePredict}
-                        disabled={loading || !homeTeamId || !awayTeamId || homeTeamId === awayTeamId}
+                        onClick={handleRunSimulation}
+                        disabled={!homeTeamId || !awayTeamId || selectedSeasons.length === 0 || homeTeamId === awayTeamId || loading}
                         loading={loading}
                     >
-                        Predict
+                        Run Simulation
                     </Button>
+                    {homeTeamId === awayTeamId && homeTeamId !== undefined && (
+                        <p className="mt-2 text-xs text-danger-500">Home and away teams must be different</p>
+                    )}
                 </div>
             </Card>
 
+            {loading && <Loading message="Running simulations (Monte Carlo + ML)..." />}
             {error && <ErrorState message={error} />}
 
-            {/* Prediction Results */}
-            {prediction && (
-                <div className="space-y-4 animate-fade-in">
+            {(monteCarloResult || mlResult) && (
+                <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
                         <KPICard
-                            label={`${prediction.home_team.name} Win`}
-                            value={`${(prediction.probabilities.home_win * 100).toFixed(1)}%`}
+                            label={`${homeTeamName} Win`}
+                            value={`${(((monteCarloResult?.home_win_prob ?? 0) + (mlResult?.probabilities.home_win ?? 0)) / (monteCarloResult && mlResult ? 2 : 1) * 100).toFixed(1)}%`}
                         />
                         <KPICard
                             label="Draw"
-                            value={`${(prediction.probabilities.draw * 100).toFixed(1)}%`}
+                            value={`${(((monteCarloResult?.draw_prob ?? 0) + (mlResult?.probabilities.draw ?? 0)) / (monteCarloResult && mlResult ? 2 : 1) * 100).toFixed(1)}%`}
                         />
                         <KPICard
-                            label={`${prediction.away_team.name} Win`}
-                            value={`${(prediction.probabilities.away_win * 100).toFixed(1)}%`}
+                            label={`${awayTeamName} Win`}
+                            value={`${(((monteCarloResult?.away_win_prob ?? 0) + (mlResult?.probabilities.away_win ?? 0)) / (monteCarloResult && mlResult ? 2 : 1) * 100).toFixed(1)}%`}
                         />
-                        <KPICard
-                            label="Most Likely Score"
-                            value={prediction.most_likely_score}
-                        />
-                        <KPICard
-                            label="Over 2.5 Goals"
-                            value={`${(prediction.markets.over_2_5 * 100).toFixed(1)}%`}
-                        />
-                        <KPICard
-                            label="BTTS"
-                            value={`${(prediction.markets.btts * 100).toFixed(1)}%`}
-                        />
+                        <KPICard label="Most Likely Score" value={mlResult?.most_likely_score ?? monteCarloResult?.most_likely_score ?? "—"} />
+                        <KPICard label="Over 2.5" value={`${((monteCarloResult?.over_2_5_prob ?? mlResult?.markets.over_2_5 ?? 0) * 100).toFixed(1)}%`} />
+                        <KPICard label="BTTS" value={`${((monteCarloResult?.btts_prob ?? mlResult?.markets.btts ?? 0) * 100).toFixed(1)}%`} />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        <Card title="Prediction Summary">
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Badge variant={
-                                        prediction.predicted_outcome === "home_win"
-                                            ? "success"
-                                            : prediction.predicted_outcome === "away_win"
-                                                ? "danger"
-                                                : "warning"
-                                    }>
-                                        {prediction.predicted_outcome.replace("_", " ").toUpperCase()}
-                                    </Badge>
-                                    <span className="text-sm text-[var(--text-muted)]">
-                                        Confidence: {(prediction.confidence * 100).toFixed(1)}%
-                                    </span>
-                                </div>
-                                <div className="text-sm text-[var(--text-secondary)]">
-                                    <p>
-                                        Expected Goals: {prediction.expected_goals.home.toFixed(2)} —{" "}
-                                        {prediction.expected_goals.away.toFixed(2)}
-                                    </p>
-                                    <p className="mt-1 text-xs text-[var(--text-muted)]">
-                                        Model: v{prediction.model_version}
-                                    </p>
-                                </div>
+                    {monteCarloResult && mlResult && (
+                        <Card title="Model Comparison">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-[var(--border-color)] text-left text-xs text-[var(--text-muted)]">
+                                            <th className="pb-2 pr-4">Metric</th>
+                                            <th className="pb-2 pr-4">Monte Carlo</th>
+                                            <th className="pb-2">ML Model</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-[var(--text-secondary)]">
+                                        <tr className="border-b border-[var(--border-color)]/50">
+                                            <td className="py-2 pr-4 font-medium">{homeTeamName} Win</td>
+                                            <td className="py-2 pr-4 tabular-nums">{(monteCarloResult.home_win_prob * 100).toFixed(1)}%</td>
+                                            <td className="py-2 tabular-nums">{(mlResult.probabilities.home_win * 100).toFixed(1)}%</td>
+                                        </tr>
+                                        <tr className="border-b border-[var(--border-color)]/50">
+                                            <td className="py-2 pr-4 font-medium">Draw</td>
+                                            <td className="py-2 pr-4 tabular-nums">{(monteCarloResult.draw_prob * 100).toFixed(1)}%</td>
+                                            <td className="py-2 tabular-nums">{(mlResult.probabilities.draw * 100).toFixed(1)}%</td>
+                                        </tr>
+                                        <tr className="border-b border-[var(--border-color)]/50">
+                                            <td className="py-2 pr-4 font-medium">{awayTeamName} Win</td>
+                                            <td className="py-2 pr-4 tabular-nums">{(monteCarloResult.away_win_prob * 100).toFixed(1)}%</td>
+                                            <td className="py-2 tabular-nums">{(mlResult.probabilities.away_win * 100).toFixed(1)}%</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-2 pr-4 font-medium">Expected Goals</td>
+                                            <td className="py-2 pr-4 tabular-nums">{monteCarloResult.expected_home_goals.toFixed(2)} — {monteCarloResult.expected_away_goals.toFixed(2)}</td>
+                                            <td className="py-2 tabular-nums">{mlResult.expected_goals.home.toFixed(2)} — {mlResult.expected_goals.away.toFixed(2)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </Card>
+                    )}
 
-                        <Card title="Key Features Driving Prediction">
-                            <div className="space-y-2 max-h-48 overflow-y-auto">
-                                {Object.entries(prediction.feature_contributions)
+                    {monteCarloResult && (
+                        <Card title="Scoreline Distribution" subtitle="Monte Carlo — 10,000 iterations">
+                            <SimulationChart result={monteCarloResult} homeTeam={homeTeamName} awayTeam={awayTeamName} />
+                        </Card>
+                    )}
+
+                    {mlResult && (
+                        <Card title="Key Features Driving ML Prediction">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Badge variant={mlResult.predicted_outcome === "home_win" ? "success" : mlResult.predicted_outcome === "away_win" ? "danger" : "warning"}>
+                                    {mlResult.predicted_outcome.replace("_", " ").toUpperCase()}
+                                </Badge>
+                                <span className="text-xs text-[var(--text-muted)]">
+                                    Confidence: {(mlResult.confidence * 100).toFixed(1)}% • Model v{mlResult.model_version}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 max-h-56 overflow-y-auto">
+                                {Object.entries(mlResult.feature_contributions)
                                     .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-                                    .slice(0, 8)
+                                    .slice(0, 10)
                                     .map(([feature, value]) => (
                                         <div key={feature} className="flex items-center justify-between text-sm">
-                                            <span className="text-[var(--text-secondary)]">
-                                                {feature.replace(/_/g, " ")}
-                                            </span>
-                                            <span
-                                                className={`tabular-nums font-medium ${
-                                                    value > 0 ? "text-green-500" : "text-red-500"
-                                                }`}
-                                            >
-                                                {value > 0 ? "+" : ""}
-                                                {value.toFixed(3)}
+                                            <span className="text-[var(--text-secondary)]">{feature.replace(/_/g, " ")}</span>
+                                            <span className={`tabular-nums font-medium ${value > 0 ? "text-green-500" : "text-red-500"}`}>
+                                                {value > 0 ? "+" : ""}{value.toFixed(3)}
                                             </span>
                                         </div>
                                     ))}
                             </div>
                         </Card>
-                    </div>
+                    )}
                 </div>
             )}
         </div>
@@ -436,18 +294,18 @@ function MLPredictionTab() {
 // ─── Ratings Tab ─────────────────────────────────────────────────────────────
 
 function RatingsTab() {
-    const [competitionId, setCompetitionId] = useState<string>("");
+    const [seasonId, setSeasonId] = useState<number>();
     const [ratings, setRatings] = useState<TeamRating[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const { data: seasons } = useQuery({ queryKey: ["seasons"], queryFn: fetchSeasons });
 
     const handleFetchRatings = async () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await api.get<{ ratings: TeamRating[] }>("/predict/ratings", {
-                competition_id: competitionId ? Number(competitionId) : undefined,
-            });
+            const data = await api.get<{ ratings: TeamRating[] }>("/predict/ratings", { season_id: seasonId });
             setRatings(data.ratings || []);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to load ratings");
@@ -459,21 +317,20 @@ function RatingsTab() {
     return (
         <div className="space-y-4">
             <Card padding="md">
+                <p className="mb-3 text-xs text-[var(--text-muted)]">
+                    Computed team strength ratings based on offensive, defensive, and form metrics.
+                </p>
                 <div className="flex items-end gap-4">
-                    <div>
-                        <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
-                            Competition ID (optional)
-                        </label>
-                        <input
-                            type="number"
-                            value={competitionId}
-                            onChange={(e) => setCompetitionId(e.target.value)}
-                            className="w-40 rounded-lg border border-[var(--border-color)] bg-[var(--bg-primary)] px-3 py-2 text-sm"
-                            placeholder="All"
-                        />
-                    </div>
-                    <Button onClick={handleFetchRatings} disabled={loading}>
-                        {loading ? "Loading..." : "Load Ratings"}
+                    <Select
+                        label="Season"
+                        options={(seasons ?? []).map((s) => ({ value: s.id, label: `${s.competition_name} ${s.name}` }))}
+                        value={seasonId}
+                        onChange={(v) => setSeasonId(Number(v))}
+                        placeholder="All seasons"
+                        className="w-64"
+                    />
+                    <Button onClick={handleFetchRatings} disabled={loading} loading={loading}>
+                        Load Ratings
                     </Button>
                 </div>
             </Card>
@@ -497,45 +354,19 @@ function RatingsTab() {
                             </thead>
                             <tbody>
                                 {ratings.map((r, i) => (
-                                    <tr
-                                        key={r.team_id}
-                                        className="border-b border-[var(--border-color)]/50"
-                                    >
+                                    <tr key={r.team_id} className="border-b border-[var(--border-color)]/50">
                                         <td className="py-2 pr-4 text-[var(--text-muted)]">{i + 1}</td>
-                                        <td className="py-2 pr-4 font-medium text-[var(--text-primary)]">
-                                            {r.team_name}
-                                        </td>
-                                        <td className="py-2 pr-4 tabular-nums">
-                                            {r.overall_rating.toFixed(2)}
-                                        </td>
-                                        <td className="py-2 pr-4 tabular-nums text-green-500">
-                                            {r.offensive_strength.toFixed(2)}
-                                        </td>
-                                        <td className="py-2 pr-4 tabular-nums text-blue-500">
-                                            {r.defensive_strength.toFixed(2)}
-                                        </td>
+                                        <td className="py-2 pr-4 font-medium text-[var(--text-primary)]">{r.team_name}</td>
+                                        <td className="py-2 pr-4 tabular-nums">{r.overall_rating.toFixed(2)}</td>
+                                        <td className="py-2 pr-4 tabular-nums text-green-500">{r.offensive_strength.toFixed(2)}</td>
+                                        <td className="py-2 pr-4 tabular-nums text-blue-500">{r.defensive_strength.toFixed(2)}</td>
                                         <td className="py-2 pr-4">
-                                            <span
-                                                className={`text-xs ${
-                                                    r.form_trend === "improving"
-                                                        ? "text-green-500"
-                                                        : r.form_trend === "declining"
-                                                            ? "text-red-500"
-                                                            : "text-[var(--text-muted)]"
-                                                }`}
-                                            >
-                                                {r.form_trend === "improving"
-                                                    ? "↑"
-                                                    : r.form_trend === "declining"
-                                                        ? "↓"
-                                                        : "→"}{" "}
-                                                {r.form_trend}
+                                            <span className={`text-xs ${r.form_trend === "improving" ? "text-green-500" : r.form_trend === "declining" ? "text-red-500" : "text-[var(--text-muted)]"}`}>
+                                                {r.form_trend === "improving" ? "↑" : r.form_trend === "declining" ? "↓" : "→"} {r.form_trend}
                                             </span>
                                         </td>
                                         <td className="py-2">
-                                            <span className="rounded-full bg-[var(--bg-secondary)] px-2 py-0.5 text-xs">
-                                                {r.confidence}
-                                            </span>
+                                            <span className="rounded-full bg-[var(--bg-secondary)] px-2 py-0.5 text-xs">{r.confidence}</span>
                                         </td>
                                     </tr>
                                 ))}
@@ -551,19 +382,126 @@ function RatingsTab() {
 // ─── Tournament Tab ──────────────────────────────────────────────────────────
 
 function TournamentTab() {
+    const [format, setFormat] = useState<"league" | "groups_knockout" | "knockout">("league");
+    const [selectedTeams, setSelectedTeams] = useState<number[]>([]);
+    const [nSimulations, setNSimulations] = useState(1000);
+    const [results, setResults] = useState<TournamentTeamResult[] | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
+
+    const toggleTeam = (teamId: number) => {
+        setSelectedTeams((prev) => prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]);
+    };
+
+    const handleSimulate = async () => {
+        if (selectedTeams.length < 2) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await api.post<{ team_results: TournamentTeamResult[] }>("/predict/tournament", {
+                format_type: format,
+                team_ids: selectedTeams,
+                n_simulations: nSimulations,
+            });
+            setResults(data.team_results || []);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Tournament simulation failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <Card>
-            <div className="py-8 text-center text-[var(--text-muted)]">
-                <p className="text-lg font-medium">Tournament Simulation</p>
-                <p className="mt-2 text-sm">
-                    Configure a tournament format (World Cup, Champions League, League) and run Monte
-                    Carlo simulations to project team progression probabilities.
+        <div className="space-y-4">
+            <Card padding="md">
+                <p className="mb-3 text-xs text-[var(--text-muted)]">
+                    Simulate an entire competition — league, group stage + knockout, or straight knockout.
                 </p>
-                <p className="mt-4 text-xs">
-                    Use POST /api/v1/predict/tournament with format configuration via the Analysis
-                    Workbench or API directly.
-                </p>
-            </div>
-        </Card>
+                <div className="flex flex-wrap items-end gap-4 mb-4">
+                    <Select
+                        label="Format"
+                        options={[
+                            { value: "league", label: "League (Round Robin)" },
+                            { value: "groups_knockout", label: "Groups + Knockout" },
+                            { value: "knockout", label: "Knockout" },
+                        ]}
+                        value={format}
+                        onChange={(v) => setFormat(v as typeof format)}
+                        className="w-56"
+                    />
+                    <div>
+                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Simulations</label>
+                        <input
+                            type="number"
+                            value={nSimulations}
+                            onChange={(e) => setNSimulations(Number(e.target.value) || 1000)}
+                            min={100}
+                            max={50000}
+                            className="w-28 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+                        />
+                    </div>
+                </div>
+
+                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                    Teams ({selectedTeams.length} selected)
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                    {(teams ?? []).map((t) => (
+                        <button
+                            key={t.id}
+                            onClick={() => toggleTeam(t.id)}
+                            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                                selectedTeams.includes(t.id)
+                                    ? "bg-accent-500 text-white"
+                                    : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
+                            }`}
+                        >
+                            {t.name}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-4">
+                    <Button onClick={handleSimulate} disabled={selectedTeams.length < 2 || loading} loading={loading}>
+                        Simulate Tournament
+                    </Button>
+                </div>
+            </Card>
+
+            {error && <ErrorState message={error} />}
+
+            {results && results.length > 0 && (
+                <Card title="Tournament Projection">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-[var(--border-color)] text-left text-xs text-[var(--text-muted)]">
+                                    <th className="pb-2 pr-4">#</th>
+                                    <th className="pb-2 pr-4">Team</th>
+                                    <th className="pb-2 pr-4">Win %</th>
+                                    <th className="pb-2 pr-4">Final %</th>
+                                    <th className="pb-2 pr-4">Semi %</th>
+                                    {format === "league" && <th className="pb-2">Exp. Pts</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {results.sort((a, b) => b.winner_prob - a.winner_prob).map((r, i) => (
+                                    <tr key={r.team_id} className="border-b border-[var(--border-color)]/50">
+                                        <td className="py-2 pr-4 text-[var(--text-muted)]">{i + 1}</td>
+                                        <td className="py-2 pr-4 font-medium text-[var(--text-primary)]">{r.team_name}</td>
+                                        <td className="py-2 pr-4 tabular-nums font-semibold text-accent-500">{(r.winner_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 pr-4 tabular-nums">{(r.final_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 pr-4 tabular-nums">{(r.semi_final_prob * 100).toFixed(1)}%</td>
+                                        {format === "league" && <td className="py-2 tabular-nums">{r.expected_points?.toFixed(1) ?? "—"}</td>}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            )}
+        </div>
     );
 }

@@ -71,9 +71,9 @@ class TestSecurityHeaders:
         response = client.get("/api/v1/health")
         assert response.headers.get("X-Frame-Options") == "DENY"
 
-    def test_x_xss_protection(self) -> None:
+    def test_content_security_policy(self) -> None:
         response = client.get("/api/v1/health")
-        assert response.headers.get("X-XSS-Protection") == "1; mode=block"
+        assert "Content-Security-Policy" in response.headers
 
     def test_request_id_assigned(self) -> None:
         response = client.get("/api/v1/health")

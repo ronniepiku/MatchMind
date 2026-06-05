@@ -25,7 +25,7 @@ MatchMind is a **production-grade football intelligence platform** designed for 
 
 ### Infrastructure
 - **React dashboard**: 10 pages with D3 pitch visualisations, dark/light theme, Tailwind CSS
-- **FastAPI REST layer**: Full OpenAPI docs, CORS, cache endpoints, data validation endpoints
+- **FastAPI REST layer**: Modular route architecture, OpenAPI docs, CORS, cache endpoints, data validation
 - **Database migrations**: Alembic with environment-aware config (local Postgres or Railway `DATABASE_URL`)
 - **Data quality pipeline**: 7-check validation gate with audit trail
 - **Parquet cache**: 50ms data access vs 800ms from PostgreSQL
@@ -85,8 +85,8 @@ uv run fb-report --type opponent --team-id 771 --season-id 106
 
 ```bash
 # Create database
-createdb football_analytics
-psql football_analytics < src/football_analytics/db/schema.sql
+createdb MatchMind
+psql MatchMind < src/football_analytics/db/schema.sql
 
 # Set connection in .env
 echo "POSTGRES_HOST=localhost" >> .env
@@ -114,12 +114,20 @@ MatchMind/
 │   ├── src/
 │   │   ├── api/                 # Typed HTTP client + endpoint functions
 │   │   ├── components/          # Charts, layout, pitch, shared UI
-│   │   ├── pages/               # 10 route-level pages
+│   │   ├── pages/               # Route-level pages
 │   │   └── styles/              # Tailwind CSS + theme
 │   └── vite.config.ts
 ├── src/football_analytics/
 │   ├── config.py                # Environment settings (DATABASE_URL aware)
-│   ├── api.py                   # FastAPI REST endpoints (~2400 lines)
+│   ├── api.py                   # FastAPI app setup (middleware, CORS, lifespan)
+│   ├── routes/                  # API route modules (split by domain)
+│   │   ├── health.py            # Health/readiness probes
+│   │   ├── analysis.py          # xG, player profiles, team analysis
+│   │   ├── dashboard.py         # Frontend data endpoints
+│   │   ├── prediction.py        # Match prediction, ratings, ML pipeline
+│   │   ├── matchday.py          # Fixtures, calendar, pre/post match
+│   │   ├── executive.py         # Executive reports, ad-hoc queries
+│   │   └── cache.py             # Cache stats, system endpoints
 │   ├── ingest.py                # Sync ingestion (COPY protocol)
 │   ├── async_ingest.py          # Async concurrent ingestion
 │   ├── ingest_orchestrator.py   # Multi-competition incremental sync
@@ -134,9 +142,11 @@ MatchMind/
 │   │   ├── team_rating.py       # Bayesian team strength ratings
 │   │   ├── tactical_matchup.py  # Style-based matchup analysis
 │   │   ├── tournament.py        # Monte Carlo tournament simulation
+│   │   ├── ml_pipeline.py       # Gradient-boosted ML match prediction
 │   │   └── model_versioning.py  # Prediction accuracy tracking
 │   ├── matchday/
 │   │   ├── fixtures.py          # Fixture calendar & status lifecycle
+│   │   ├── fixture_sync.py      # External fixture sync (football-data.org)
 │   │   ├── pre_match.py         # Automated pre-match dossiers
 │   │   ├── post_match.py        # Post-match result processing
 │   │   └── reviews.py           # Structured match review workflow
@@ -189,7 +199,7 @@ MatchMind/
 | `spatial.py` | Voronoi tessellation, passing lanes, coverage gaps | Space control analysis |
 | `validation.py` | 7-check data quality pipeline | Data integrity before analytics |
 | `cache.py` | Parquet-based query result caching | Fast notebook/dashboard loads |
-| `api.py` | FastAPI REST endpoints + cache/validation system | Frontend, integrations, mobile |
+| `api.py` + `routes/` | FastAPI REST endpoints (modular) | Frontend, integrations, mobile |
 
 ## Dashboard
 
@@ -360,6 +370,11 @@ similar = find_similar_players(target_player_id=5503, player_vectors=vectors, po
 uv sync --all-extras
 npm run install:frontend
 
+# Install only optional groups you need
+uv sync --extra notebooks   # Jupyter + nbformat
+uv sync --extra viz          # matplotlib + mplsoccer
+uv sync --extra reports      # WeasyPrint + matplotlib
+
 # Run linter
 uv run ruff check src/ tests/
 
@@ -394,8 +409,12 @@ Default dataset: **FIFA World Cup 2022** (competition_id=43, season_id=106).
 - **[Technical Appendix](docs/TECHNICAL_APPENDIX.md)** — Detailed methodology for all metrics, models, and analyses
 
 ### For Developers
-- **[Testing Guide](docs/TESTING_GUIDE.md)** — Test organization (73 tests), running tests, writing new tests, coverage targets
-- **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Profiling results, optimisation strategies, benchmarks
+- **[Testing Guide](docs/TESTING_GUIDE.md)** — Test organization (180+ tests), running tests, writing new tests, coverage targets
+- **[Performance](docs/PERFORMANCE.md)** — Profiling results, optimisation strategies, benchmarks
+
+### Deployment
+- **[Railway Deployment](docs/DEPLOYMENT_RAILWAY.md)** — Full guide to deploy backend on Railway with managed PostgreSQL
+- **[GitHub Pages](docs/DEPLOYMENT_GITHUB_PAGES.md)** — Deploy the React frontend as a static site
 
 ## License
 
