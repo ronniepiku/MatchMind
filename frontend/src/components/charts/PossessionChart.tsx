@@ -28,6 +28,14 @@ export default function PossessionChart({
     className,
     size = 220,
 }: PossessionChartProps) {
+    if (!data || data.length === 0) {
+        return (
+            <div className={clsx("flex items-center justify-center", className)} style={{ height: size }}>
+                <p className="text-sm text-[var(--text-muted)]">No possession data available</p>
+            </div>
+        );
+    }
+
     return (
         <div className={clsx("flex items-center gap-6", className)}>
             <ResponsiveContainer width={size} height={size}>
@@ -68,7 +76,7 @@ export default function PossessionChart({
                         />
                         <div className="flex items-baseline gap-2">
                             <span className="text-sm font-medium text-[var(--text-primary)] tabular-nums">
-                                {item.percentage.toFixed(1)}%
+                                {(item.percentage ?? 0).toFixed(1)}%
                             </span>
                             <span className="text-xs text-[var(--text-muted)]">{item.style}</span>
                         </div>

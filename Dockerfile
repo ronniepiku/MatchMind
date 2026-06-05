@@ -48,8 +48,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # Expose API port (Railway sets PORT env var)
 EXPOSE ${PORT:-8080}
 
-# Start the API server (shell form so $PORT is expanded)
-CMD uv run uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}
-
 # Run migrations then start API server
 CMD ["sh", "-c", "uv run alembic upgrade head 2>/dev/null; uv run uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}"]

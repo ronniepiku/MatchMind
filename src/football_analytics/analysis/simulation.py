@@ -59,6 +59,7 @@ def simulate_match(
     n_simulations: int = _DEFAULT_SIMULATIONS,
     xg_variance: float = 0.15,
     home_advantage_factor: float = 1.0,
+    seed: int | None = None,
 ) -> MatchSimulationResult:
     """Simulate a match using expected goals (xG) as Poisson parameters.
 
@@ -73,11 +74,12 @@ def simulate_match(
         n_simulations: Number of Monte Carlo simulations.
         xg_variance: Random variance added to xG per simulation (realism).
         home_advantage_factor: Multiplier for home xG (1.0 = no adjustment).
+        seed: Optional random seed for reproducibility (None for true randomness).
 
     Returns:
         MatchSimulationResult with full probability distributions.
     """
-    rng = np.random.default_rng(seed=42)
+    rng = np.random.default_rng(seed=seed)
 
     # Apply home advantage
     adj_home_xg = home_xg * home_advantage_factor

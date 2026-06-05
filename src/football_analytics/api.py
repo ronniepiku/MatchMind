@@ -22,7 +22,11 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
+
+import football_analytics as _fa
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,20 +43,12 @@ logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
-app = FastAPI(
-    title="Football Analytics API",
-    description="REST API for StatsBomb-based football data analysis",
-    version="0.5.0",
-    docs_url="/docs" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
-    redoc_url="/redoc" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
-)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-
-@app.on_event("startup")
-async def _run_migrations() -> None:
-    """Run Alembic migrations on startup (best-effort, non-blocking)."""
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan — runs migrations on startup."""
+    # Migrations are handled by the Dockerfile CMD; this is a best-effort fallback
+    # for development environments running `uv run fb-api` directly.
     import subprocess
 
     if os.getenv("DATABASE_URL") or os.getenv("POSTGRES_PASSWORD"):
@@ -66,20 +62,38 @@ async def _run_migrations() -> None:
             logger.info("Alembic migrations applied successfully")
         except Exception as exc:
             logger.warning("Alembic migration skipped: %s", exc)
+    yield
 
 
-# ─── Request Logging Middleware ─────────────────────────────────────────────
+app = FastAPI(
+    title="Football Analytics API",
+    description="REST API for StatsBomb-based football data analysis",
+    version=_fa.__version__,
+    docs_url="/docs" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
+    redoc_url="/redoc" if os.getenv("API_DOCS_ENABLED", "true").lower() == "true" else None,
+    lifespan=lifespan,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log all requests with method, path, status, and duration."""
+# ─── Request ID + Logging Middleware ────────────────────────────────────────
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to each request for tracing."""
 
     async def dispatch(self, request: Request, call_next):
+        import uuid
+
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         start = time.perf_counter()
         response = await call_next(request)
         duration_ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Request-ID"] = request_id
         logger.info(
-            "%s %s → %d (%.1fms)",
+            "[%s] %s %s → %d (%.1fms)",
+            request_id[:8],
             request.method,
             request.url.path,
             response.status_code,
@@ -88,7 +102,25 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RequestIDMiddleware)
+
+
+# ─── Security Headers Middleware ────────────────────────────────────────────
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add standard security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ─── Global Exception Handler ───────────────────────────────────────────────
@@ -126,7 +158,7 @@ app.add_middleware(
 
 class HealthResponse(BaseModel):
     status: str = "healthy"
-    version: str = "0.3.0"
+    version: str = _fa.__version__
 
 
 class ShotInput(BaseModel):
@@ -240,6 +272,24 @@ async def health_check() -> HealthResponse:
     return HealthResponse()
 
 
+@app.get("/api/v1/ready")
+async def readiness_check() -> dict[str, Any]:
+    """Readiness check — verifies database connectivity.
+
+    Use this for Kubernetes/Railway readiness probes. Unlike /health,
+    this actually checks that the database is reachable.
+    """
+    from football_analytics.db import check_connectivity
+
+    db_ok = check_connectivity()
+    if not db_ok:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "unreachable"},
+        )
+    return {"status": "ready", "database": "connected"}
+
+
 @app.post("/api/v1/xg/predict", response_model=XGPredictionResponse)
 async def predict_xg(shot: ShotInput) -> XGPredictionResponse:
     """Predict expected goals (xG) for a single shot.
@@ -347,11 +397,11 @@ async def get_player_profile(
     Returns aggregated statistics for a player, optionally filtered by season.
     Requires database connection.
     """
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import text
 
-    from football_analytics.config import config
+    from football_analytics.db import get_engine as _get_engine
 
-    engine = create_engine(config.db.url)
+    engine = _get_engine()
 
     query = """
         SELECT player_id, player_name, team_name, season_id,
@@ -1863,6 +1913,132 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
 
 
 # ============================================================================
+# ML Prediction Endpoints
+# ============================================================================
+
+
+class MLPredictionRequest(BaseModel):
+    home_team_id: int
+    away_team_id: int
+    season_id: int | None = Field(None, description="Season context for feature computation")
+
+
+class MLTrainRequest(BaseModel):
+    season_ids: list[int] | None = Field(None, description="Seasons to train on (None = all)")
+
+
+@app.post("/api/v1/predict/ml")
+@limiter.limit("30/minute")
+async def ml_predict_match(request: Request, pred_req: MLPredictionRequest) -> dict[str, Any]:
+    """ML-powered match prediction using gradient-boosted ensemble.
+
+    Returns calibrated probabilities, expected scorelines, and feature
+    contributions explaining the prediction.
+    """
+    from football_analytics.prediction.ml_pipeline import MLMatchPredictor
+
+    predictor = MLMatchPredictor()
+    predictor.load()  # Load trained model if available
+
+    try:
+        prediction = predictor.predict(
+            home_team_id=pred_req.home_team_id,
+            away_team_id=pred_req.away_team_id,
+            season_id=pred_req.season_id,
+        )
+    except Exception as exc:
+        logger.exception("ML prediction failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "home_team": {"id": prediction.home_team_id, "name": prediction.home_team_name},
+        "away_team": {"id": prediction.away_team_id, "name": prediction.away_team_name},
+        "probabilities": {
+            "home_win": prediction.home_win_prob,
+            "draw": prediction.draw_prob,
+            "away_win": prediction.away_win_prob,
+        },
+        "predicted_outcome": prediction.predicted_outcome,
+        "confidence": prediction.confidence,
+        "expected_goals": {
+            "home": prediction.expected_home_goals,
+            "away": prediction.expected_away_goals,
+        },
+        "most_likely_score": f"{prediction.most_likely_score[0]}-{prediction.most_likely_score[1]}",
+        "markets": {
+            "over_2_5": prediction.over_2_5_prob,
+            "btts": prediction.btts_prob,
+        },
+        "feature_contributions": prediction.feature_contributions,
+        "model_version": prediction.model_version,
+    }
+
+
+@app.post("/api/v1/predict/ml/train")
+@limiter.limit("2/minute")
+async def ml_train_model(request: Request, train_req: MLTrainRequest) -> dict[str, Any]:
+    """Train the ML prediction model on historical data.
+
+    Uses time-series cross-validation to avoid look-ahead bias.
+    Returns model evaluation metrics.
+    """
+    from football_analytics.prediction.ml_pipeline import MLMatchPredictor
+
+    predictor = MLMatchPredictor()
+
+    try:
+        metrics = predictor.train(season_ids=train_req.season_ids)
+        predictor.save()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("ML model training failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "status": "trained",
+        "model_version": metrics.n_matches,
+        "metrics": {
+            "brier_score": metrics.brier_score,
+            "log_loss": metrics.log_loss,
+            "roc_auc_home": metrics.roc_auc_home,
+            "roc_auc_draw": metrics.roc_auc_draw,
+            "roc_auc_away": metrics.roc_auc_away,
+            "accuracy": metrics.accuracy,
+            "calibration_error": metrics.calibration_error,
+            "n_matches": metrics.n_matches,
+        },
+        "top_features": metrics.feature_importance,
+    }
+
+
+@app.get("/api/v1/predict/ml/status")
+async def ml_model_status() -> dict[str, Any]:
+    """Check ML model status — whether trained model exists and its metrics."""
+    from football_analytics.prediction.ml_pipeline import MLMatchPredictor, _MODELS_DIR, ML_MODEL_VERSION
+
+    predictor = MLMatchPredictor()
+    model_loaded = predictor.load()
+    metrics = predictor.get_metrics()
+
+    return {
+        "model_available": model_loaded,
+        "model_version": ML_MODEL_VERSION,
+        "model_path": str(_MODELS_DIR / f"ml_predictor_v{ML_MODEL_VERSION}.pkl"),
+        "metrics": (
+            {
+                "brier_score": metrics.brier_score,
+                "log_loss": metrics.log_loss,
+                "accuracy": metrics.accuracy,
+                "n_matches": metrics.n_matches,
+            }
+            if metrics
+            else None
+        ),
+    }
+
+
+# ============================================================================
 # Matchday Operations Endpoints
 # ============================================================================
 
@@ -2101,6 +2277,102 @@ def get_fixtures_needing_review() -> dict[str, Any]:
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ============================================================================
+# Fixture Sync (External API) Endpoints
+# ============================================================================
+
+
+@app.get("/api/v1/matchday/competitions")
+def get_supported_competitions() -> dict[str, Any]:
+    """Get list of competitions available for fixture sync."""
+    from football_analytics.matchday.fixture_sync import get_supported_competitions
+
+    return {"competitions": get_supported_competitions()}
+
+
+@app.get("/api/v1/matchday/sync/{competition_code}")
+def sync_competition_fixtures(competition_code: str) -> dict[str, Any]:
+    """Fetch upcoming fixtures from football-data.org and sync to local DB.
+
+    Args:
+        competition_code: One of PL (Premier League), CL (Champions League), WC (World Cup).
+    """
+    from football_analytics.matchday.fixture_sync import Competition, sync_fixtures_to_db
+
+    code = competition_code.upper()
+    try:
+        competition = Competition(code)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported competition code '{code}'. Must be one of: PL, CL, WC",
+        )
+
+    try:
+        result = sync_fixtures_to_db(competition)
+        return {
+            "competition": competition.display_name,
+            "code": code,
+            **result,
+        }
+    except RuntimeError as exc:
+        # Missing API key
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.exception(f"Fixture sync failed for {code}")
+        raise HTTPException(status_code=502, detail=f"External API error: {exc}")
+
+
+@app.get("/api/v1/matchday/external/{competition_code}")
+def get_external_fixtures(competition_code: str) -> dict[str, Any]:
+    """Fetch upcoming fixtures directly from football-data.org without saving.
+
+    Useful for preview before syncing, or when DB is not configured.
+    """
+    from dataclasses import asdict
+
+    from football_analytics.matchday.fixture_sync import (
+        Competition,
+        fetch_competition_fixtures,
+    )
+
+    code = competition_code.upper()
+    try:
+        competition = Competition(code)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported competition code '{code}'. Must be one of: PL, CL, WC",
+        )
+
+    try:
+        fixtures = fetch_competition_fixtures(competition)
+        return {
+            "competition": competition.display_name,
+            "code": code,
+            "count": len(fixtures),
+            "fixtures": [
+                {
+                    "external_id": f.external_id,
+                    "match_date": f.match_date.isoformat() if f.match_date else None,
+                    "kick_off": f.kick_off,
+                    "home_team": {"id": f.home_team_id, "name": f.home_team_name},
+                    "away_team": {"id": f.away_team_id, "name": f.away_team_name},
+                    "matchday": f.matchday,
+                    "stage": f.stage,
+                    "status": f.status,
+                    "competition_name": f.competition_name,
+                }
+                for f in fixtures
+            ],
+        }
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.exception(f"External fixture fetch failed for {code}")
+        raise HTTPException(status_code=502, detail=f"External API error: {exc}")
 
 
 # ============================================================================

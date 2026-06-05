@@ -153,7 +153,13 @@ export default function TeamScorecard() {
                             <KPICard
                                 key={kpi.label}
                                 label={kpi.label}
-                                value={(kpi.value ?? 0).toFixed(kpi.unit === "%" ? 1 : 2)}
+                                value={
+                                    kpi.unit === "%"
+                                        ? (kpi.value ?? 0).toFixed(1)
+                                        : Number.isInteger(kpi.value)
+                                            ? String(kpi.value ?? 0)
+                                            : (kpi.value ?? 0).toFixed(2)
+                                }
                                 unit={kpi.unit}
                                 change={kpi.change}
                             />
