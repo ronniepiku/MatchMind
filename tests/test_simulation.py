@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from football_analytics.analysis.simulation import simulate_match
 
 

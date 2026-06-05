@@ -23,8 +23,6 @@ Features engineered per team (home/away):
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import pickle
 from dataclasses import dataclass, field
@@ -34,7 +32,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.special import expit as sigmoid
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
@@ -211,7 +208,9 @@ class MatchFeatureEngine:
             return self._empty_features()
 
         n_matches_actual = row.matches_played
-        per_match = lambda val: float(val) / n_matches_actual
+
+        def per_match(val: float) -> float:
+            return float(val) / n_matches_actual
 
         # Avoid division by zero
         shots = max(row.total_shots, 1)

@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-import threading
 from typing import Any
 
 import pandas as pd

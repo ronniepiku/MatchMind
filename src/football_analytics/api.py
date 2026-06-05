@@ -26,8 +26,6 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-import football_analytics as _fa
-
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -36,6 +34,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+
+import football_analytics as _fa
 
 logger = logging.getLogger(__name__)
 
@@ -1946,7 +1946,7 @@ async def ml_predict_match(request: Request, pred_req: MLPredictionRequest) -> d
             away_team_id=pred_req.away_team_id,
             season_id=pred_req.season_id,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("ML prediction failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -1991,7 +1991,7 @@ async def ml_train_model(request: Request, train_req: MLTrainRequest) -> dict[st
         predictor.save()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("ML model training failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -2015,7 +2015,7 @@ async def ml_train_model(request: Request, train_req: MLTrainRequest) -> dict[st
 @app.get("/api/v1/predict/ml/status")
 async def ml_model_status() -> dict[str, Any]:
     """Check ML model status — whether trained model exists and its metrics."""
-    from football_analytics.prediction.ml_pipeline import MLMatchPredictor, _MODELS_DIR, ML_MODEL_VERSION
+    from football_analytics.prediction.ml_pipeline import _MODELS_DIR, ML_MODEL_VERSION, MLMatchPredictor
 
     predictor = MLMatchPredictor()
     model_loaded = predictor.load()
@@ -2331,7 +2331,6 @@ def get_external_fixtures(competition_code: str) -> dict[str, Any]:
 
     Useful for preview before syncing, or when DB is not configured.
     """
-    from dataclasses import asdict
 
     from football_analytics.matchday.fixture_sync import (
         Competition,
