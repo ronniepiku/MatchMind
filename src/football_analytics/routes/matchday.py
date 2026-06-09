@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1/matchday", tags=["matchday"])
@@ -62,8 +62,9 @@ def get_matchday_fixtures(
             team_id=team_id,
         )
         return {"count": len(fixtures), "fixtures": [manager._fixture_to_dict(f) for f in fixtures]}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to get fixtures")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/calendar")
@@ -77,8 +78,9 @@ def get_matchday_calendar(
     try:
         manager = FixtureManager()
         return manager.get_calendar_summary(days_ahead=days_ahead, days_behind=days_behind)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to get calendar")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/fixtures")
@@ -103,8 +105,9 @@ def create_fixture(request: FixtureCreateRequest) -> dict[str, Any]:
         )
         fixture_id = manager.create_fixture(fixture)
         return {"fixture_id": fixture_id, "status": "created"}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to create fixture")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/fixtures/batch")
@@ -132,13 +135,14 @@ def create_fixtures_batch(request: FixtureBatchCreateRequest) -> dict[str, Any]:
         ]
         ids = manager.create_fixtures_batch(fixtures)
         return {"fixture_ids": ids, "count": len(ids)}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to create fixtures batch")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/fixtures/{fixture_id}/status")
 def update_fixture_status(
-    fixture_id: int,
+    fixture_id: int = Path(..., gt=0),
     status: str = Query(..., description="New status value"),
     match_id: int | None = Query(None),
 ) -> dict[str, Any]:
@@ -157,13 +161,14 @@ def update_fixture_status(
         manager = FixtureManager()
         manager.update_status(fixture_id, status_enum, match_id=match_id)
         return {"fixture_id": fixture_id, "status": status_enum.value}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to update fixture status")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/fixtures/{fixture_id}/pre-match")
 def get_pre_match_pack(
-    fixture_id: int,
+    fixture_id: int = Path(..., gt=0),
     our_team_id: int | None = Query(None),
 ) -> dict[str, Any]:
     """Generate or retrieve pre-match intelligence pack."""
@@ -180,13 +185,13 @@ def get_pre_match_pack(
         return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Pre-match pack generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/fixtures/{fixture_id}/post-match")
-def generate_post_match(fixture_id: int, request: PostMatchRequest) -> dict[str, Any]:
+def generate_post_match(request: PostMatchRequest, fixture_id: int = Path(..., gt=0)) -> dict[str, Any]:
     """Generate post-match review for a completed fixture."""
     from dataclasses import asdict
 
@@ -203,9 +208,9 @@ def generate_post_match(fixture_id: int, request: PostMatchRequest) -> dict[str,
         return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Post-match review generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/needing-preview")
@@ -217,8 +222,9 @@ def get_fixtures_needing_preview() -> dict[str, Any]:
         manager = FixtureManager()
         fixtures = manager.get_needing_preview()
         return {"count": len(fixtures), "fixtures": [manager._fixture_to_dict(f) for f in fixtures]}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to get fixtures needing preview")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/needing-review")
@@ -230,8 +236,9 @@ def get_fixtures_needing_review() -> dict[str, Any]:
         manager = FixtureManager()
         fixtures = manager.get_needing_review()
         return {"count": len(fixtures), "fixtures": [manager._fixture_to_dict(f) for f in fixtures]}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to get fixtures needing review")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ─── External Fixture Sync ──────────────────────────────────────────────────

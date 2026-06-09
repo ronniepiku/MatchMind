@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -57,7 +57,7 @@ class ValidationReport:
     """Aggregated validation report for a batch or match."""
 
     source: str
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
     results: list[ValidationResult] = field(default_factory=list)
 
     @property
