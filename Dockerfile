@@ -45,8 +45,8 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/api/v1/health || exit 1
 
-# Expose API port (Railway sets PORT env var)
+# Expose API port (Render/Railway sets PORT env var)
 EXPOSE ${PORT:-8080}
 
 # Run migrations then start API server
-CMD ["sh", "-c", "uv run alembic upgrade head || echo 'WARNING: Migration failed'; uv run uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uv run --no-sync alembic upgrade head || echo 'WARNING: Migration failed'; uv run --no-sync uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
