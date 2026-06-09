@@ -48,6 +48,7 @@ notebooks = [
 viz = [
     "matplotlib>=3.8",
     "mplsoccer>=1.2",
+    "plotly>=5.18",
 ]
 reports = [
     "weasyprint>=60.0",

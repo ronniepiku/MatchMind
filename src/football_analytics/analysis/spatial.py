@@ -19,11 +19,13 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull, Voronoi
 
+from football_analytics.analysis.constants import PITCH_LENGTH, PITCH_WIDTH
+
 logger = logging.getLogger(__name__)
 
-# Standard pitch dimensions (metres)
-_PITCH_LENGTH = 105.0
-_PITCH_WIDTH = 68.0
+# Module-level aliases for backward compatibility
+_PITCH_LENGTH = PITCH_LENGTH
+_PITCH_WIDTH = PITCH_WIDTH
 
 
 @dataclass
