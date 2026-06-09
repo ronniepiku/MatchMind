@@ -445,132 +445,199 @@ async def get_team_scorecard(
     team_id: int = Query(...),
     season_id: int = Query(...),
 ) -> dict[str, Any]:
-    """Generate comprehensive team scorecard."""
+    """Generate comprehensive team scorecard using SQL aggregations."""
     cache_k = response_cache.cache_key("team_scorecard", team_id=team_id, season_id=season_id)
     cached = response_cache.get(cache_k)
     if cached is not None:
         return cached
 
-    import pandas as pd
     from sqlalchemy import text
 
-    from football_analytics.analysis.opponent_profile import get_opponent_defensive_shape
-    from football_analytics.analysis.possession_chains import (
-        chains_to_dataframe,
-        compute_team_possession_profile,
-        compute_transition_metrics,
-        extract_possession_chains,
-    )
-    from football_analytics.analysis.set_pieces import (
-        compute_set_piece_efficiency,
-        extract_set_pieces,
-        set_pieces_to_dataframe,
-    )
     from football_analytics.db import get_engine as _get_engine
 
     engine = _get_engine()
 
     with engine.connect() as conn:
-        events_df = pd.read_sql(
+        # 1. KPIs — computed entirely in SQL
+        kpi_row = conn.execute(
             text("""
-                SELECT e.match_id, e.team_id, e.player_id, e.event_type,
-                       e.minute, e.second, e.location_x, e.location_y,
-                       e.end_location_x, e.end_location_y,
-                       e.pass_outcome, e.pass_length, e.play_pattern,
-                       e.xg, e.shot_outcome, e.possession,
-                       e.under_pressure, e.key_pass
+                SELECT
+                    COUNT(DISTINCT m.match_id) AS n_matches,
+                    COALESCE(SUM(e.xg) FILTER (WHERE e.event_type = 'Shot' AND e.team_id = :team_id), 0) AS total_xg,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Shot' AND e.team_id = :team_id) AS total_shots,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Pass' AND e.team_id = :team_id AND e.pass_outcome IS NULL) AS passes_completed,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Pass' AND e.team_id = :team_id) AS passes_attempted
                 FROM events e
                 JOIN matches m ON e.match_id = m.match_id
                 WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
                   AND m.season_id = :season_id
-                ORDER BY e.match_id, e.minute, e.second
             """),
-            conn,
-            params={"team_id": team_id, "season_id": season_id},
-        )
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchone()
 
-    if events_df.empty:
-        raise HTTPException(status_code=404, detail="No event data found")
+        if not kpi_row or kpi_row.n_matches == 0:
+            raise HTTPException(status_code=404, detail="No event data found")
 
-    chains = extract_possession_chains(events_df)
-    chains_df = chains_to_dataframe(chains)
-    profile = compute_team_possession_profile(chains_df, team_id)
-    transitions = compute_transition_metrics(chains)
+        n_matches = int(kpi_row.n_matches)
+        total_xg = float(kpi_row.total_xg)
+        passes_completed = int(kpi_row.passes_completed)
+        passes_attempted = int(kpi_row.passes_attempted)
+        pass_accuracy = round(passes_completed / max(passes_attempted, 1) * 100, 1)
 
-    sp_events = events_df[events_df["play_pattern"].isin(["From Corner", "From Free Kick", "From Throw In"])]
-    sp_sequences = extract_set_pieces(sp_events) if not sp_events.empty else []
-    sp_df = set_pieces_to_dataframe(sp_sequences) if sp_sequences else pd.DataFrame()
-    sp_efficiency = compute_set_piece_efficiency(sp_df, team_id) if not sp_df.empty else {}
+        kpis = [
+            {"label": "Matches", "value": n_matches, "unit": ""},
+            {"label": "Total xG", "value": round(total_xg, 2), "unit": ""},
+            {"label": "xG/Match", "value": round(total_xg / n_matches, 2), "unit": ""},
+            {"label": "Shots", "value": int(kpi_row.total_shots), "unit": ""},
+            {"label": "Pass Accuracy", "value": pass_accuracy, "unit": "%"},
+        ]
 
-    defensive_shape = get_opponent_defensive_shape(engine, team_id, season_id)
+        # 2. Possession profile — build-up style from play patterns (SQL)
+        style_rows = conn.execute(
+            text("""
+                SELECT
+                    CASE
+                        WHEN e.play_pattern IN ('From Corner', 'From Free Kick', 'From Throw In') THEN 'Set Piece'
+                        WHEN e.play_pattern = 'From Counter' THEN 'Counter Attack'
+                        WHEN e.play_pattern = 'From Goal Kick' THEN 'Build From Back'
+                        WHEN e.play_pattern = 'Regular Play' THEN 'Open Play'
+                        ELSE 'Other'
+                    END AS style,
+                    COUNT(*) AS event_count
+                FROM events e
+                JOIN matches m ON e.match_id = m.match_id
+                WHERE e.team_id = :team_id
+                  AND (m.home_team_id = :team_id OR m.away_team_id = :team_id)
+                  AND m.season_id = :season_id
+                GROUP BY style
+                ORDER BY event_count DESC
+            """),
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchall()
 
-    team_events = events_df[events_df["team_id"] == team_id]
-    n_matches = events_df["match_id"].nunique()
-    shots = team_events[team_events["event_type"] == "Shot"]
-    total_xg = float(shots["xg"].sum()) if "xg" in shots.columns else 0.0
+        total_events = sum(r.event_count for r in style_rows) if style_rows else 1
+        possession_profile = [
+            {"style": r.style, "percentage": round(r.event_count / total_events * 100, 1)}
+            for r in style_rows
+            if r.event_count > 0
+        ]
 
-    kpis = [
-        {"label": "Matches", "value": n_matches, "unit": ""},
-        {"label": "Total xG", "value": round(total_xg, 2), "unit": ""},
-        {"label": "xG/Match", "value": round(total_xg / max(n_matches, 1), 2), "unit": ""},
-        {"label": "Possession Chains", "value": profile.get("total_chains", 0), "unit": ""},
-        {
-            "label": "Dangerous Poss %",
-            "value": round(profile.get("dangerous_possession_rate", 0) * 100, 1),
-            "unit": "%",
-        },
-    ]
+        # 3. Pressing intensity — defensive actions by zone (SQL)
+        pressing_rows = conn.execute(
+            text("""
+                SELECT
+                    CASE
+                        WHEN e.location_x < 40 THEN 'Defensive Third'
+                        WHEN e.location_x < 80 THEN 'Middle Third'
+                        ELSE 'Attacking Third'
+                    END AS zone,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Pressure') AS pressures,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Tackle') AS tackles,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Interception') AS interceptions
+                FROM events e
+                JOIN matches m ON e.match_id = m.match_id
+                WHERE e.team_id = :team_id
+                  AND m.season_id = :season_id
+                  AND e.event_type IN ('Pressure', 'Tackle', 'Interception', 'Block')
+                  AND e.location_x IS NOT NULL
+                GROUP BY zone
+                ORDER BY zone
+            """),
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchall()
 
-    possession_profile = [
-        {"style": k, "percentage": round(v * 100, 1)} for k, v in profile.get("style_distribution", {}).items()
-    ]
+        pressing_data = [
+            {
+                "zone": r.zone,
+                "pressures_per_90": round(int(r.pressures) / max(n_matches, 1) * (90 / 95), 1),
+            }
+            for r in pressing_rows
+        ]
 
-    pressing_data = []
-    if defensive_shape is not None and hasattr(defensive_shape, "iterrows") and not defensive_shape.empty:
-        for _, zone_data in defensive_shape.iterrows():
-            pressing_data.append(
-                {
-                    "zone": zone_data.get("zone", "Unknown"),
-                    "pressures_per_90": round(int(zone_data.get("pressures", 0)) / max(n_matches, 1) * (90 / 95), 1),
-                }
-            )
-    elif isinstance(defensive_shape, list):
-        for zone_data in defensive_shape:
-            if isinstance(zone_data, dict):
-                pressing_data.append(
-                    {
-                        "zone": zone_data.get("zone", "Unknown"),
-                        "pressures_per_90": round(zone_data.get("pressures", 0) / max(n_matches, 1) * (90 / 95), 1),
-                    }
+        # 4. Transition metrics — counter-attacks vs build-up (SQL)
+        transition_rows = conn.execute(
+            text("""
+                WITH shot_chains AS (
+                    SELECT
+                        e.possession,
+                        e.match_id,
+                        e.play_pattern,
+                        MIN(e.minute * 60 + COALESCE(e.second, 0)) AS chain_start,
+                        MAX(e.minute * 60 + COALESCE(e.second, 0)) AS chain_end,
+                        SUM(e.xg) FILTER (WHERE e.event_type = 'Shot') AS chain_xg,
+                        COUNT(*) FILTER (WHERE e.event_type = 'Shot' AND e.shot_outcome = 'Goal') AS goals,
+                        COUNT(*) AS events
+                    FROM events e
+                    JOIN matches m ON e.match_id = m.match_id
+                    WHERE e.team_id = :team_id
+                      AND (m.home_team_id = :team_id OR m.away_team_id = :team_id)
+                      AND m.season_id = :season_id
+                    GROUP BY e.match_id, e.possession, e.play_pattern
+                    HAVING COUNT(*) >= 2
                 )
+                SELECT
+                    CASE
+                        WHEN play_pattern = 'From Counter' OR (chain_end - chain_start) < 10 THEN 'Counter Attack'
+                        WHEN (chain_end - chain_start) > 15 AND events >= 5 THEN 'Patient Build-Up'
+                        ELSE 'Transition'
+                    END AS metric,
+                    COUNT(*) AS chain_count,
+                    COALESCE(SUM(chain_xg), 0) AS total_xg,
+                    COALESCE(SUM(goals), 0) AS total_goals,
+                    ROUND(AVG(chain_end - chain_start)::numeric, 1) AS avg_duration
+                FROM shot_chains
+                GROUP BY metric
+                ORDER BY chain_count DESC
+            """),
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchall()
 
-    transition_metrics = []
-    if transitions and isinstance(transitions, dict):
-        for metric_name, value in transitions.items():
-            transition_metrics.append(
-                {
-                    "metric": metric_name.replace("_", " ").title(),
-                    "value": round(value, 2) if isinstance(value, (int, float)) else 0,
-                    "league_avg": 0,
-                    "percentile": 50,
-                }
-            )
+        transition_metrics = [
+            {
+                "metric": r.metric,
+                "value": round(float(r.total_xg) / max(int(r.chain_count), 1), 3),
+                "league_avg": 0,
+                "percentile": 50,
+            }
+            for r in transition_rows
+        ]
 
-    set_pieces_list = []
-    if sp_efficiency and isinstance(sp_efficiency, dict):
-        for sp_type in ["corner", "free_kick", "throw_in"]:
-            count = sp_efficiency.get(f"{sp_type}_count", 0)
-            if count:
-                set_pieces_list.append(
-                    {
-                        "type": sp_type.replace("_", " ").title(),
-                        "total": count,
-                        "chances_created": sp_efficiency.get(f"{sp_type}_chances", 0),
-                        "goals": sp_efficiency.get(f"{sp_type}_goals", 0),
-                        "xg": round(sp_efficiency.get(f"{sp_type}_xg", 0), 2),
-                        "conversion_rate": round(sp_efficiency.get(f"{sp_type}_goal_rate", 0), 3),
-                    }
-                )
+        # 5. Set-piece efficiency (SQL)
+        sp_rows = conn.execute(
+            text("""
+                SELECT
+                    CASE
+                        WHEN e.play_pattern = 'From Corner' THEN 'Corner'
+                        WHEN e.play_pattern = 'From Free Kick' THEN 'Free Kick'
+                        WHEN e.play_pattern = 'From Throw In' THEN 'Throw In'
+                    END AS sp_type,
+                    COUNT(DISTINCT (e.match_id, e.possession)) AS total,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Shot') AS chances_created,
+                    COUNT(*) FILTER (WHERE e.event_type = 'Shot' AND e.shot_outcome = 'Goal') AS goals,
+                    COALESCE(SUM(e.xg) FILTER (WHERE e.event_type = 'Shot'), 0) AS xg
+                FROM events e
+                JOIN matches m ON e.match_id = m.match_id
+                WHERE e.team_id = :team_id
+                  AND m.season_id = :season_id
+                  AND e.play_pattern IN ('From Corner', 'From Free Kick', 'From Throw In')
+                GROUP BY sp_type
+                ORDER BY total DESC
+            """),
+            {"team_id": team_id, "season_id": season_id},
+        ).fetchall()
+
+        set_pieces_list = [
+            {
+                "type": r.sp_type,
+                "total": int(r.total),
+                "chances_created": int(r.chances_created),
+                "goals": int(r.goals),
+                "xg": round(float(r.xg), 2),
+                "conversion_rate": round(int(r.goals) / max(int(r.total), 1), 3),
+            }
+            for r in sp_rows
+            if r.total > 0
+        ]
 
     result = {
         "kpis": kpis,

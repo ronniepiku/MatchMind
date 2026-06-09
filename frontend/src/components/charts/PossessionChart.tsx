@@ -38,34 +38,37 @@ export default function PossessionChart({
 
     return (
         <div className={clsx("flex items-center gap-6", className)}>
-            <ResponsiveContainer width={size} height={size}>
-                <PieChart>
-                    <Pie
-                        data={data}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={size * 0.28}
-                        outerRadius={size * 0.42}
-                        dataKey="percentage"
-                        nameKey="style"
-                        paddingAngle={2}
-                        strokeWidth={0}
-                    >
-                        {data.map((_, idx) => (
-                            <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                        ))}
-                    </Pie>
-                    <Tooltip
-                        contentStyle={{
-                            backgroundColor: "var(--bg-card)",
-                            border: "1px solid var(--border-color)",
-                            borderRadius: "8px",
-                            fontSize: "12px",
-                        }}
-                        formatter={(value) => `${Number(value).toFixed(1)}%`}
-                    />
-                </PieChart>
-            </ResponsiveContainer>
+            <div style={{ width: size, height: size }}>
+                <ResponsiveContainer width={size} height={size}>
+                    <PieChart>
+                        <Pie
+                            data={data}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={size * 0.28}
+                            outerRadius={size * 0.42}
+                            dataKey="percentage"
+                            nameKey="style"
+                            paddingAngle={2}
+                            strokeWidth={0}
+                            isAnimationActive={false}
+                        >
+                            {data.map((_, idx) => (
+                                <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                            ))}
+                        </Pie>
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: "var(--bg-card)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "8px",
+                                fontSize: "12px",
+                            }}
+                            formatter={(value) => `${Number(value).toFixed(1)}%`}
+                        />
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
 
             <div className="space-y-2">
                 {data.map((item, idx) => (
