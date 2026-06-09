@@ -26,15 +26,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from football_analytics.analysis.constants import (
+    PITCH_LENGTH,
+    PITCH_WIDTH,
+    SB_PITCH_LENGTH,
+    SB_PITCH_WIDTH,
+)
+
 logger = logging.getLogger(__name__)
-
-# Standard pitch dimensions (metres) — tracking data typically uses metres
-PITCH_LENGTH = 105.0
-PITCH_WIDTH = 68.0
-
-# StatsBomb pitch dimensions (for coordinate conversion)
-SB_PITCH_LENGTH = 120.0
-SB_PITCH_WIDTH = 80.0
 
 
 @dataclass

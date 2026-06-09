@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -194,3 +195,53 @@ class TestPredictionVersionManager:
             mock_read.return_value = pd.DataFrame()
             report = manager.accuracy_report()
             assert report is not None
+
+
+# ─── Parquet Cache Tests ──────────────────────────────────────────────────────
+
+
+class TestParquetCache:
+    """Tests for the Parquet caching layer."""
+
+    def test_cache_miss_then_hit(self, tmp_path: Path) -> None:
+        """First call should miss, second should hit."""
+        import football_analytics.cache as cache_mod
+        from football_analytics.cache import cached_query
+
+        # Redirect cache to temp dir
+        original_dir = cache_mod.CACHE_DIR
+        cache_mod.CACHE_DIR = tmp_path
+
+        call_count = 0
+
+        def mock_query(x: int = 0) -> pd.DataFrame:
+            nonlocal call_count
+            call_count += 1
+            return pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+
+        # First call — cache miss
+        result1 = cached_query("test", mock_query, x=1)
+        assert call_count == 1
+        assert len(result1) == 3
+
+        # Second call — cache hit (query_fn should NOT be called again)
+        result2 = cached_query("test", mock_query, x=1)
+        assert call_count == 1  # Not called again
+        assert result1.equals(result2)
+
+        # Restore
+        cache_mod.CACHE_DIR = original_dir
+
+    def test_invalidate_cache(self, tmp_path: Path) -> None:
+        """Invalidation should remove cached files."""
+        import football_analytics.cache as cache_mod
+        from football_analytics.cache import cached_query, invalidate_cache
+
+        original_dir = cache_mod.CACHE_DIR
+        cache_mod.CACHE_DIR = tmp_path
+
+        cached_query("test_inv", lambda: pd.DataFrame({"x": [1]}))
+        count = invalidate_cache("test_inv")
+        assert count == 1
+
+        cache_mod.CACHE_DIR = original_dir

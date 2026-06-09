@@ -1,0 +1,16 @@
+name: Data Sync
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly on Monday at 4AM UTC
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - run: uv run fb-ingest --competition-id 43 --season-id 106
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
