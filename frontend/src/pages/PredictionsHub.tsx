@@ -415,6 +415,359 @@ interface TournamentDetail extends TournamentSummary {
     groups: { name: string; teams: string[] }[];
 }
 
+// ─── Tournament Bracket Tree ─────────────────────────────────────────────────
+
+interface BracketMatch {
+    team1: string;
+    team2: string;
+    winner: string;
+    team1Prob: number;
+    team2Prob: number;
+}
+
+interface BracketRound {
+    name: string;
+    matches: BracketMatch[];
+}
+
+/**
+ * FIFA World Cup bracket paths.
+ * Each R16 match is defined by "1X vs 2Y" meaning Winner of Group X vs Runner-up of Group Y.
+ * QF/SF/Final are derived by simulating winners through the fixed bracket sides.
+ */
+
+// 2018 & 2022: 8 groups (A-H), 16 teams in R16
+const FIFA_R16_8_GROUPS: [string, string][] = [
+    ["1A", "2B"], // Match 49
+    ["1C", "2D"], // Match 50
+    ["1E", "2F"], // Match 51
+    ["1G", "2H"], // Match 52
+    ["1B", "2A"], // Match 53
+    ["1D", "2C"], // Match 54
+    ["1F", "2E"], // Match 55
+    ["1H", "2G"], // Match 56
+];
+
+// 2026: 12 groups (A-L), 32 teams (24 from top-2 + 8 best 3rd-place)
+// R32 bracket: group winners vs best 3rd-place, runners-up cross-matched
+const FIFA_R32_12_GROUPS: [string, string][] = [
+    ["1A", "3C/D/E"],  // Match 49
+    ["1B", "3A/D/E"],  // Match 50
+    ["1C", "3A/B/F"],  // Match 51
+    ["1D", "3B/E/F"],  // Match 52
+    ["1E", "3C/D/F"],  // Match 53
+    ["1F", "3A/B/C"],  // Match 54
+    ["1G", "3H/I/J"],  // Match 55
+    ["1H", "3G/I/J"],  // Match 56
+    ["1I", "3G/H/L"],  // Match 57
+    ["1J", "3H/K/L"],  // Match 58
+    ["1K", "3I/J/L"],  // Match 59
+    ["1L", "3G/K/I"],  // Match 60
+    ["2A", "2F"],      // Match 61
+    ["2B", "2E"],      // Match 62
+    ["2C", "2D"],      // Match 63
+    ["2G", "2L"],      // Match 64
+    ["2H", "2K"],      // Match 65
+    ["2I", "2J"],      // Match 66
+];
+
+function getGroupTeams(results: TournamentTeamResult[]) {
+    // Group results by group, sorted by group_advance_prob descending within each group
+    const groups = new Map<string, TournamentTeamResult[]>();
+    for (const r of results) {
+        const g = r.group_name;
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g)!.push(r);
+    }
+    // Sort each group by advancement probability (proxy for group position)
+    for (const [, teams] of groups) {
+        teams.sort((a, b) => b.group_advance_prob - a.group_advance_prob);
+    }
+    return groups;
+}
+
+function resolveSlot(slot: string, groups: Map<string, TournamentTeamResult[]>, bestThirds: TournamentTeamResult[]): TournamentTeamResult | undefined {
+    // "1A" = winner of Group A, "2B" = runner-up of Group B, "3C/D/E" = best 3rd from those groups
+    if (slot.startsWith("3")) {
+        // Pick the best available 3rd-place team from the specified group options
+        const groupOptions = slot.slice(1).split("/");
+        const candidate = bestThirds.find(t => {
+            const groupLetter = t.group_name.replace("Group ", "");
+            return groupOptions.includes(groupLetter);
+        });
+        return candidate;
+    }
+    const position = parseInt(slot[0]) - 1; // 0-indexed: "1" = index 0, "2" = index 1
+    const groupLetter = slot.slice(1);
+    const groupName = `Group ${groupLetter}`;
+    const groupTeams = groups.get(groupName);
+    return groupTeams?.[position];
+}
+
+function deriveBracket(results: TournamentTeamResult[]): BracketRound[] {
+    const groups = getGroupTeams(results);
+    const numGroups = groups.size;
+
+    // Compute best 3rd-place teams (needed for 2026 format with 12 groups)
+    const thirdPlaceTeams: TournamentTeamResult[] = [];
+    if (numGroups === 12) {
+        for (const [, teams] of groups) {
+            if (teams[2]) thirdPlaceTeams.push(teams[2]);
+        }
+        // Sort by round_of_32_prob (their likelihood to advance beyond groups as 3rd)
+        thirdPlaceTeams.sort((a, b) => b.round_of_32_prob - a.round_of_32_prob);
+    }
+
+    if (numGroups === 12) {
+        // 2026 format: R32 → R16 → QF → SF → Final
+        const r32Matches: BracketMatch[] = FIFA_R32_12_GROUPS.map(([slot1, slot2]) => {
+            const t1 = resolveSlot(slot1, groups, thirdPlaceTeams);
+            const t2 = resolveSlot(slot2, groups, thirdPlaceTeams);
+            return {
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.round_of_16_prob ?? 0) >= (t2?.round_of_16_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.round_of_32_prob ?? 0,
+                team2Prob: t2?.round_of_32_prob ?? 0,
+            };
+        });
+
+        // R16: winners from R32, paired consecutively (match 49 winner vs match 50 winner, etc.)
+        const r16Winners = r32Matches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const r16Matches: BracketMatch[] = [];
+        for (let i = 0; i < r16Winners.length - 1; i += 2) {
+            const t1 = r16Winners[i];
+            const t2 = r16Winners[i + 1];
+            r16Matches.push({
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.quarter_final_prob ?? 0) >= (t2?.quarter_final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.round_of_16_prob ?? 0,
+                team2Prob: t2?.round_of_16_prob ?? 0,
+            });
+        }
+
+        // QF: winners from R16
+        const qfWinners = r16Matches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const qfMatches: BracketMatch[] = [];
+        for (let i = 0; i < qfWinners.length - 1; i += 2) {
+            const t1 = qfWinners[i];
+            const t2 = qfWinners[i + 1];
+            qfMatches.push({
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.semi_final_prob ?? 0) >= (t2?.semi_final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.quarter_final_prob ?? 0,
+                team2Prob: t2?.quarter_final_prob ?? 0,
+            });
+        }
+
+        // SF: winners from QF
+        const sfWinners = qfMatches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const sfMatches: BracketMatch[] = [];
+        for (let i = 0; i < sfWinners.length - 1; i += 2) {
+            const t1 = sfWinners[i];
+            const t2 = sfWinners[i + 1];
+            sfMatches.push({
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.final_prob ?? 0) >= (t2?.final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.semi_final_prob ?? 0,
+                team2Prob: t2?.semi_final_prob ?? 0,
+            });
+        }
+
+        // Final
+        const finalWinners = sfMatches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const t1 = finalWinners[0];
+        const t2 = finalWinners[1];
+        const finalMatch: BracketMatch = {
+            team1: t1?.team_name ?? "TBD",
+            team2: t2?.team_name ?? "TBD",
+            winner: (t1?.winner_prob ?? 0) >= (t2?.winner_prob ?? 0)
+                ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+            team1Prob: t1?.final_prob ?? 0,
+            team2Prob: t2?.final_prob ?? 0,
+        };
+
+        return [
+            { name: "Round of 32", matches: r32Matches },
+            { name: "Round of 16", matches: r16Matches },
+            { name: "Quarter-Finals", matches: qfMatches },
+            { name: "Semi-Finals", matches: sfMatches },
+            { name: "Final", matches: [finalMatch] },
+        ];
+    } else {
+        // 2018/2022 format: 8 groups, R16 → QF → SF → Final
+        const r16Matches: BracketMatch[] = FIFA_R16_8_GROUPS.map(([slot1, slot2]) => {
+            const t1 = resolveSlot(slot1, groups, []);
+            const t2 = resolveSlot(slot2, groups, []);
+            return {
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.quarter_final_prob ?? 0) >= (t2?.quarter_final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.round_of_16_prob ?? 0,
+                team2Prob: t2?.round_of_16_prob ?? 0,
+            };
+        });
+
+        // QF: R16 winners, consecutive pairs
+        const qfWinners = r16Matches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const qfMatches: BracketMatch[] = [];
+        for (let i = 0; i < qfWinners.length - 1; i += 2) {
+            const t1 = qfWinners[i];
+            const t2 = qfWinners[i + 1];
+            qfMatches.push({
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.semi_final_prob ?? 0) >= (t2?.semi_final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.quarter_final_prob ?? 0,
+                team2Prob: t2?.quarter_final_prob ?? 0,
+            });
+        }
+
+        // SF: QF winners
+        const sfWinners = qfMatches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const sfMatches: BracketMatch[] = [];
+        for (let i = 0; i < sfWinners.length - 1; i += 2) {
+            const t1 = sfWinners[i];
+            const t2 = sfWinners[i + 1];
+            sfMatches.push({
+                team1: t1?.team_name ?? "TBD",
+                team2: t2?.team_name ?? "TBD",
+                winner: (t1?.final_prob ?? 0) >= (t2?.final_prob ?? 0)
+                    ? (t1?.team_name ?? "TBD") : (t2?.team_name ?? "TBD"),
+                team1Prob: t1?.semi_final_prob ?? 0,
+                team2Prob: t2?.semi_final_prob ?? 0,
+            });
+        }
+
+        // Final
+        const finalWinners = sfMatches.map(m =>
+            results.find(r => r.team_name === m.winner)
+        );
+        const ft1 = finalWinners[0];
+        const ft2 = finalWinners[1];
+        const finalMatch: BracketMatch = {
+            team1: ft1?.team_name ?? "TBD",
+            team2: ft2?.team_name ?? "TBD",
+            winner: (ft1?.winner_prob ?? 0) >= (ft2?.winner_prob ?? 0)
+                ? (ft1?.team_name ?? "TBD") : (ft2?.team_name ?? "TBD"),
+            team1Prob: ft1?.final_prob ?? 0,
+            team2Prob: ft2?.final_prob ?? 0,
+        };
+
+        return [
+            { name: "Round of 16", matches: r16Matches },
+            { name: "Quarter-Finals", matches: qfMatches },
+            { name: "Semi-Finals", matches: sfMatches },
+            { name: "Final", matches: [finalMatch] },
+        ];
+    }
+}
+
+function BracketMatchCard({ match, compact }: { match: BracketMatch; compact?: boolean }) {
+    return (
+        <div className={`rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] overflow-hidden ${compact ? "text-xs" : "text-sm"}`}>
+            <div className={`flex items-center justify-between px-3 ${compact ? "py-1.5" : "py-2"} ${match.winner === match.team1 ? "bg-accent-500/10 border-l-2 border-l-accent-500" : ""}`}>
+                <span className={`${match.winner === match.team1 ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
+                    {match.team1}
+                </span>
+                <span className="tabular-nums text-[var(--text-muted)] ml-2">{(match.team1Prob * 100).toFixed(0)}%</span>
+            </div>
+            <div className="border-t border-[var(--border-color)]" />
+            <div className={`flex items-center justify-between px-3 ${compact ? "py-1.5" : "py-2"} ${match.winner === match.team2 ? "bg-accent-500/10 border-l-2 border-l-accent-500" : ""}`}>
+                <span className={`${match.winner === match.team2 ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
+                    {match.team2}
+                </span>
+                <span className="tabular-nums text-[var(--text-muted)] ml-2">{(match.team2Prob * 100).toFixed(0)}%</span>
+            </div>
+        </div>
+    );
+}
+
+function TournamentBracket({ results }: { results: TournamentTeamResult[] }) {
+    const rounds = deriveBracket(results);
+    const champion = [...results].sort((a, b) => b.winner_prob - a.winner_prob)[0];
+
+    // For display, show only QF onwards to keep the visual manageable
+    const displayRounds = rounds.length > 3 ? rounds.slice(-3) : rounds;
+
+    return (
+        <div className="space-y-4">
+            {/* Champion */}
+            <div className="flex flex-col items-center">
+                <div className="rounded-xl border-2 border-accent-500 bg-accent-500/10 px-6 py-3 text-center">
+                    <div className="text-xs font-medium uppercase tracking-wider text-accent-500 mb-1">🏆 Predicted Champion</div>
+                    <div className="text-lg font-bold text-[var(--text-primary)]">{champion.team_name}</div>
+                    <div className="text-sm tabular-nums text-accent-500">{(champion.winner_prob * 100).toFixed(1)}% probability</div>
+                </div>
+            </div>
+
+            {/* Full bracket path - earlier rounds collapsed */}
+            {rounds.length > 3 && (
+                <details className="group">
+                    <summary className="cursor-pointer text-xs font-medium text-accent-500 hover:underline text-center">
+                        Show earlier rounds ({rounds.slice(0, -3).map(r => r.name).join(", ")})
+                    </summary>
+                    <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {rounds.slice(0, -3).map((round) => (
+                            <div key={round.name}>
+                                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] text-center">
+                                    {round.name} ({round.matches.length} matches)
+                                </h4>
+                                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                                    {round.matches.map((match, i) => (
+                                        <BracketMatchCard key={i} match={match} compact />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            )}
+
+            {/* QF / SF / Final displayed prominently */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {displayRounds.map((round) => (
+                    <div key={round.name}>
+                        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] text-center">
+                            {round.name}
+                        </h4>
+                        <div className="space-y-2">
+                            {round.matches.map((match, i) => (
+                                <BracketMatchCard key={i} match={match} compact={round.matches.length > 2} />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <p className="text-center text-xs text-[var(--text-muted)]">
+                Bracket follows official FIFA knockout draw structure. Predicted winners determined by stage advancement probabilities.
+            </p>
+        </div>
+    );
+}
+
 function TournamentTab() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [nSimulations, setNSimulations] = useState(10000);
@@ -533,7 +886,14 @@ function TournamentTab() {
 
             {error && <ErrorState message={error} />}
 
-            {/* Results */}
+            {/* Tournament Bracket Tree */}
+            {results && results.length > 0 && (
+                <Card title={`${tournamentName} — Predicted Bracket`}>
+                    <TournamentBracket results={results} />
+                </Card>
+            )}
+
+            {/* Results Table */}
             {results && results.length > 0 && (
                 <Card title={`${tournamentName} — Simulation Results`}>
                     <p className="mb-3 text-xs text-[var(--text-muted)]">
