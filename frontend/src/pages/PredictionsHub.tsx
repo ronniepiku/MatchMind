@@ -24,9 +24,14 @@ interface MLPredictionResult {
 interface TournamentTeamResult {
     team_id: number;
     team_name: string;
-    winner_prob: number;
-    final_prob: number;
+    group_name: string;
+    group_advance_prob: number;
+    round_of_32_prob: number;
+    round_of_16_prob: number;
+    quarter_final_prob: number;
     semi_final_prob: number;
+    final_prob: number;
+    winner_prob: number;
     expected_points?: number;
 }
 
@@ -393,31 +398,54 @@ function RatingsTab() {
 
 // ─── Tournament Tab ──────────────────────────────────────────────────────────
 
+interface TournamentSummary {
+    id: string;
+    name: string;
+    year: number;
+    host: string;
+    total_teams: number;
+    num_groups: number;
+    status: string;
+}
+
+interface TournamentDetail extends TournamentSummary {
+    teams_advancing_per_group: number;
+    best_third_place_count: number;
+    knockout_rounds: number;
+    groups: { name: string; teams: string[] }[];
+}
+
 function TournamentTab() {
-    const [format, setFormat] = useState<"league" | "groups_knockout" | "knockout">("league");
-    const [selectedTeams, setSelectedTeams] = useState<number[]>([]);
-    const [nSimulations, setNSimulations] = useState(1000);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [nSimulations, setNSimulations] = useState(10000);
     const [results, setResults] = useState<TournamentTeamResult[] | null>(null);
+    const [tournamentName, setTournamentName] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
+    const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
+        queryKey: ["tournaments"],
+        queryFn: () => api.get<TournamentSummary[]>("/predict/tournaments"),
+    });
 
-    const toggleTeam = (teamId: number) => {
-        setSelectedTeams((prev) => prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]);
-    };
+    const { data: detail } = useQuery({
+        queryKey: ["tournament-detail", selectedId],
+        queryFn: () => api.get<TournamentDetail>(`/predict/tournaments/${selectedId}`),
+        enabled: !!selectedId,
+    });
 
     const handleSimulate = async () => {
-        if (selectedTeams.length < 2) return;
+        if (!selectedId) return;
         setLoading(true);
         setError(null);
+        setResults(null);
         try {
-            const data = await api.post<{ team_results: TournamentTeamResult[] }>("/predict/tournament", {
-                format_type: format,
-                team_ids: selectedTeams,
+            const data = await api.post<{ tournament_name: string; team_results: TournamentTeamResult[] }>("/predict/tournament", {
+                tournament_id: selectedId,
                 n_simulations: nSimulations,
             });
             setResults(data.team_results || []);
+            setTournamentName(data.tournament_name || "");
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Tournament simulation failed");
         } finally {
@@ -427,86 +455,115 @@ function TournamentTab() {
 
     return (
         <div className="space-y-4">
+            {/* Tournament Selection */}
             <Card padding="md">
                 <p className="mb-3 text-xs text-[var(--text-muted)]">
-                    Simulate an entire competition — league, group stage + knockout, or straight knockout.
+                    Select a FIFA World Cup tournament and simulate the full competition using Monte Carlo methods.
                 </p>
-                <div className="flex flex-wrap items-end gap-4 mb-4">
-                    <Select
-                        label="Format"
-                        options={[
-                            { value: "league", label: "League (Round Robin)" },
-                            { value: "groups_knockout", label: "Groups + Knockout" },
-                            { value: "knockout", label: "Knockout" },
-                        ]}
-                        value={format}
-                        onChange={(v) => setFormat(v as typeof format)}
-                        className="w-56"
-                    />
-                    <div>
-                        <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Simulations</label>
-                        <input
-                            type="number"
-                            value={nSimulations}
-                            onChange={(e) => setNSimulations(Number(e.target.value) || 1000)}
-                            min={100}
-                            max={50000}
-                            className="w-28 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
-                        />
+
+                {tournamentsLoading ? (
+                    <Loading message="Loading tournaments..." />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                        {(tournaments ?? []).map((t) => (
+                            <button
+                                key={t.id}
+                                onClick={() => { setSelectedId(t.id); setResults(null); }}
+                                className={`relative rounded-xl border p-4 text-left transition-all ${
+                                    selectedId === t.id
+                                        ? "border-accent-500 bg-accent-500/10 ring-1 ring-accent-500/30"
+                                        : "border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-accent-500/50"
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-lg font-bold text-[var(--text-primary)]">{t.year}</span>
+                                    <Badge variant={t.status === "upcoming" ? "info" : "default"}>{t.status}</Badge>
+                                </div>
+                                <p className="text-xs text-[var(--text-muted)]">{t.host}</p>
+                                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                                    {t.total_teams} teams · {t.num_groups} groups
+                                </p>
+                            </button>
+                        ))}
                     </div>
-                </div>
+                )}
 
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                    Teams ({selectedTeams.length} selected)
-                </label>
-                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                    {(teams ?? []).map((t) => (
-                        <button
-                            key={t.id}
-                            onClick={() => toggleTeam(t.id)}
-                            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                                selectedTeams.includes(t.id)
-                                    ? "bg-accent-500 text-white"
-                                    : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]"
-                            }`}
-                        >
-                            {t.name}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mt-4">
-                    <Button onClick={handleSimulate} disabled={selectedTeams.length < 2 || loading} loading={loading}>
-                        Simulate Tournament
-                    </Button>
-                </div>
+                {selectedId && (
+                    <div className="flex items-end gap-4">
+                        <div>
+                            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Simulations</label>
+                            <input
+                                type="number"
+                                value={nSimulations}
+                                onChange={(e) => setNSimulations(Number(e.target.value) || 10000)}
+                                min={100}
+                                max={50000}
+                                className="w-28 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+                            />
+                        </div>
+                        <Button onClick={handleSimulate} disabled={loading} loading={loading}>
+                            Simulate Tournament
+                        </Button>
+                    </div>
+                )}
             </Card>
+
+            {/* Group Stage Overview */}
+            {detail && !results && (
+                <Card title={`${detail.name} — Groups`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {detail.groups.map((g) => (
+                            <div key={g.name} className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-3">
+                                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent-500">{g.name}</h4>
+                                <ul className="space-y-1">
+                                    {g.teams.map((team) => (
+                                        <li key={team} className="text-sm text-[var(--text-primary)]">{team}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="mt-3 text-xs text-[var(--text-muted)]">
+                        Top {detail.teams_advancing_per_group} per group advance
+                        {detail.best_third_place_count > 0 && ` + ${detail.best_third_place_count} best third-placed teams`}
+                        {" → "}{detail.knockout_rounds} knockout rounds
+                    </p>
+                </Card>
+            )}
 
             {error && <ErrorState message={error} />}
 
+            {/* Results */}
             {results && results.length > 0 && (
-                <Card title="Tournament Projection">
+                <Card title={`${tournamentName} — Simulation Results`}>
+                    <p className="mb-3 text-xs text-[var(--text-muted)]">
+                        Based on {nSimulations.toLocaleString()} Monte Carlo simulations. Probabilities reflect each team's chance of reaching each stage.
+                    </p>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-[var(--border-color)] text-left text-xs text-[var(--text-muted)]">
-                                    <th className="pb-2 pr-4">#</th>
-                                    <th className="pb-2 pr-4">Team</th>
-                                    <th className="pb-2 pr-4">Win %</th>
-                                    <th className="pb-2 pr-4">Final %</th>
-                                    <th className="pb-2 pr-4">Semi %</th>
-                                    {format === "league" && <th className="pb-2">Exp. Pts</th>}
+                                    <th className="pb-2 pr-3">#</th>
+                                    <th className="pb-2 pr-3">Team</th>
+                                    <th className="pb-2 pr-3">Group</th>
+                                    <th className="pb-2 pr-3">Advance %</th>
+                                    <th className="pb-2 pr-3">QF %</th>
+                                    <th className="pb-2 pr-3">SF %</th>
+                                    <th className="pb-2 pr-3">Final %</th>
+                                    <th className="pb-2">Winner %</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {results.sort((a, b) => b.winner_prob - a.winner_prob).map((r, i) => (
+                                {results.map((r, i) => (
                                     <tr key={r.team_id} className="border-b border-[var(--border-color)]/50">
-                                        <td className="py-2 pr-4 text-[var(--text-muted)]">{i + 1}</td>
-                                        <td className="py-2 pr-4 font-medium text-[var(--text-primary)]">{r.team_name}</td>
-                                        <td className="py-2 pr-4 tabular-nums font-semibold text-accent-500">{(r.winner_prob * 100).toFixed(1)}%</td>
-                                        <td className="py-2 pr-4 tabular-nums">{(r.final_prob * 100).toFixed(1)}%</td>
-                                        <td className="py-2 pr-4 tabular-nums">{(r.semi_final_prob * 100).toFixed(1)}%</td>
-                                        {format === "league" && <td className="py-2 tabular-nums">{r.expected_points?.toFixed(1) ?? "—"}</td>}
+                                        <td className="py-2 pr-3 text-[var(--text-muted)]">{i + 1}</td>
+                                        <td className="py-2 pr-3 font-medium text-[var(--text-primary)]">{r.team_name}</td>
+                                        <td className="py-2 pr-3 text-xs text-[var(--text-muted)]">{r.group_name}</td>
+                                        <td className="py-2 pr-3 tabular-nums">{(r.group_advance_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 pr-3 tabular-nums">{(r.quarter_final_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 pr-3 tabular-nums">{(r.semi_final_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 pr-3 tabular-nums">{(r.final_prob * 100).toFixed(1)}%</td>
+                                        <td className="py-2 tabular-nums font-semibold text-accent-500">{(r.winner_prob * 100).toFixed(1)}%</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -29,7 +29,8 @@ class MatchPredictionRequest(BaseModel):
 
 class TournamentSimulationRequest(BaseModel):
     competition_id: int | None = Field(None, description="Competition ID")
-    format_type: str = Field(..., description="Format: 'league', 'groups_knockout', 'knockout'")
+    format_type: str = Field("groups_knockout", description="Format: 'league', 'groups_knockout', 'knockout'")
+    tournament_id: str | None = Field(None, description="Pre-defined tournament ID (e.g. 'wc_2026')")
     groups: list[dict[str, Any]] | None = Field(None, description="Group configurations")
     team_ids: list[int] | None = Field(None, description="Team IDs (for league/knockout)")
     n_simulations: int = Field(10000, ge=100, le=100000)
@@ -205,6 +206,50 @@ async def get_tactical_matchup(
     }
 
 
+@router.get("/predict/tournaments")
+async def list_tournaments() -> list[dict[str, Any]]:
+    """List available pre-defined World Cup tournaments."""
+    from football_analytics.prediction.world_cup_data import get_all_world_cups
+
+    tournaments = get_all_world_cups()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "year": t.year,
+            "host": t.host,
+            "total_teams": t.total_teams,
+            "num_groups": len(t.groups),
+            "status": t.status,
+        }
+        for t in tournaments
+    ]
+
+
+@router.get("/predict/tournaments/{tournament_id}")
+async def get_tournament_detail(tournament_id: str) -> dict[str, Any]:
+    """Get full details of a pre-defined tournament including groups."""
+    from football_analytics.prediction.world_cup_data import get_world_cup_by_id
+
+    tournament = get_world_cup_by_id(tournament_id)
+    if not tournament:
+        raise HTTPException(status_code=404, detail=f"Tournament '{tournament_id}' not found")
+
+    return {
+        "id": tournament.id,
+        "name": tournament.name,
+        "year": tournament.year,
+        "host": tournament.host,
+        "total_teams": tournament.total_teams,
+        "num_groups": len(tournament.groups),
+        "teams_advancing_per_group": tournament.teams_advancing_per_group,
+        "best_third_place_count": tournament.best_third_place_count,
+        "knockout_rounds": tournament.knockout_rounds,
+        "status": tournament.status,
+        "groups": [{"name": g.name, "teams": g.teams} for g in tournament.groups],
+    }
+
+
 @router.post("/predict/tournament")
 async def simulate_tournament(request: Request, tourn_req: TournamentSimulationRequest) -> dict[str, Any]:
     """Simulate an entire tournament/competition."""
@@ -223,38 +268,98 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
     comp_ids = [tourn_req.competition_id] if tourn_req.competition_id else None
     ratings = rating_engine.compute_ratings(competition_ids=comp_ids)
 
-    fmt_type = CompetitionFormat(tourn_req.format_type)
+    # If tournament_id is provided, resolve it from the world cup data module
+    if tourn_req.tournament_id:
+        from football_analytics.prediction.world_cup_data import get_world_cup_by_id
 
-    if fmt_type == CompetitionFormat.LEAGUE:
-        if not tourn_req.team_ids:
-            raise HTTPException(status_code=400, detail="team_ids required for league format")
-        fmt = TournamentFormat.premier_league(tourn_req.team_ids)
-    elif fmt_type == CompetitionFormat.GROUPS_KNOCKOUT:
-        if not tourn_req.groups:
-            raise HTTPException(status_code=400, detail="groups required for groups_knockout format")
+        wc = get_world_cup_by_id(tourn_req.tournament_id)
+        if not wc:
+            raise HTTPException(status_code=404, detail=f"Tournament '{tourn_req.tournament_id}' not found")
+
+        # Map team names to IDs — build a lookup from existing ratings
+        name_to_id: dict[str, int] = {}
+        for tid, rating in ratings.items():
+            name_to_id[rating.team_name.lower()] = tid
+
+        # Assign synthetic IDs for teams not in the database
+        next_synthetic_id = 90000
+        team_name_to_id: dict[str, int] = {}
+        for team_name in wc.all_teams:
+            lower = team_name.lower()
+            if lower in name_to_id:
+                team_name_to_id[team_name] = name_to_id[lower]
+            else:
+                team_name_to_id[team_name] = next_synthetic_id
+                # Add a default rating for unresolved teams
+                from football_analytics.prediction.team_rating import TeamRating
+
+                ratings[next_synthetic_id] = TeamRating(
+                    team_id=next_synthetic_id,
+                    team_name=team_name,
+                    offensive_strength=1.0,
+                    defensive_strength=1.0,
+                    overall_rating=0.0,
+                    pressing_intensity=0.0,
+                    possession_dominance=0.5,
+                    set_piece_threat=0.0,
+                    directness=0.0,
+                    matches_used=0,
+                    confidence="low",
+                    form_trend=0.0,
+                )
+                next_synthetic_id += 1
+
+        # Build groups from the tournament definition
         group_configs = [
             GroupConfig(
-                group_name=g.get("group_name", f"Group {i + 1}"),
-                team_ids=g["team_ids"],
-                teams_advancing=g.get("teams_advancing", 2),
+                group_name=g.name,
+                team_ids=[team_name_to_id[t] for t in g.teams],
+                teams_advancing=wc.teams_advancing_per_group,
             )
-            for i, g in enumerate(tourn_req.groups)
+            for g in wc.groups
         ]
         fmt = TournamentFormat(
-            format_type=fmt_type,
-            name="Tournament",
+            format_type=CompetitionFormat.GROUPS_KNOCKOUT,
+            name=wc.name,
             groups=group_configs,
-            best_third_place_count=tourn_req.best_third_place_count,
-            knockout_rounds=tourn_req.knockout_rounds,
+            best_third_place_count=wc.best_third_place_count,
+            knockout_rounds=wc.knockout_rounds,
             extra_time=True,
             penalties=True,
         )
-    elif fmt_type == CompetitionFormat.KNOCKOUT:
-        if not tourn_req.team_ids:
-            raise HTTPException(status_code=400, detail="team_ids required for knockout format")
-        fmt = TournamentFormat.knockout_cup(tourn_req.team_ids)
     else:
-        raise HTTPException(status_code=400, detail=f"Unsupported format: {tourn_req.format_type}")
+        fmt_type = CompetitionFormat(tourn_req.format_type)
+
+        if fmt_type == CompetitionFormat.LEAGUE:
+            if not tourn_req.team_ids:
+                raise HTTPException(status_code=400, detail="team_ids required for league format")
+            fmt = TournamentFormat.premier_league(tourn_req.team_ids)
+        elif fmt_type == CompetitionFormat.GROUPS_KNOCKOUT:
+            if not tourn_req.groups:
+                raise HTTPException(status_code=400, detail="groups required for groups_knockout format")
+            group_configs = [
+                GroupConfig(
+                    group_name=g.get("group_name", f"Group {i + 1}"),
+                    team_ids=g["team_ids"],
+                    teams_advancing=g.get("teams_advancing", 2),
+                )
+                for i, g in enumerate(tourn_req.groups)
+            ]
+            fmt = TournamentFormat(
+                format_type=fmt_type,
+                name="Tournament",
+                groups=group_configs,
+                best_third_place_count=tourn_req.best_third_place_count,
+                knockout_rounds=tourn_req.knockout_rounds,
+                extra_time=True,
+                penalties=True,
+            )
+        elif fmt_type == CompetitionFormat.KNOCKOUT:
+            if not tourn_req.team_ids:
+                raise HTTPException(status_code=400, detail="team_ids required for knockout format")
+            fmt = TournamentFormat.knockout_cup(tourn_req.team_ids)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {tourn_req.format_type}")
 
     simulator = TournamentSimulator(ratings=ratings)
     result = simulator.simulate(fmt, n_simulations=tourn_req.n_simulations)
