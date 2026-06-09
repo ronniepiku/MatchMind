@@ -41,7 +41,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_API_URL: https://matchmind-api-x404.onrender.com/api/v1
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
