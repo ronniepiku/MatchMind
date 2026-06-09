@@ -517,7 +517,7 @@ async def get_team_scorecard(
 
         total_events = sum(r.event_count for r in style_rows) if style_rows else 1
         possession_profile = [
-            {"style": r.style, "percentage": round(r.event_count / total_events * 100, 1)}
+            {"name": r.style, "percentage": round(r.event_count / total_events * 100, 1)}
             for r in style_rows
             if r.event_count > 0
         ]
