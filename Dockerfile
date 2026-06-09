@@ -48,5 +48,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # Expose API port (Render/Railway sets PORT env var)
 EXPOSE ${PORT:-8080}
 
-# Run migrations then start API server
-CMD ["sh", "-c", "uv run --no-sync alembic upgrade head || echo 'WARNING: Migration failed'; uv run --no-sync uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Run migrations then start API server with multiple workers
+CMD ["sh", "-c", "uv run --no-sync alembic upgrade head || echo 'WARNING: Migration failed'; uv run --no-sync uvicorn football_analytics.api:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-2} --limit-max-requests 1000 --timeout-keep-alive 30"]

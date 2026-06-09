@@ -7,26 +7,20 @@
     <script>
         // Single-page app redirect for GitHub Pages
         // See: https://github.com/rafgraph/spa-github-pages
-        const segmentCount = 1; // /MatchMind/ = 1 segment
-        const location = window.location;
-        location.replace(
-            location.protocol +
+        var pathSegmentsToKeep = 1; // /MatchMind/ = 1 segment
+        var l = window.location;
+        // Store the full path + query + hash so index.html can restore it
+        sessionStorage.redirect = l.pathname + l.search + l.hash;
+        l.replace(
+            l.protocol +
             "//" +
-            location.hostname +
-            (location.port ? ":" + location.port : "") +
-            location.pathname
+            l.hostname +
+            (l.port ? ":" + l.port : "") +
+            l.pathname
                 .split("/")
-                .slice(0, 1 + segmentCount)
+                .slice(0, 1 + pathSegmentsToKeep)
                 .join("/") +
-            "/?/" +
-            location.pathname
-                .slice(1)
-                .split("/")
-                .slice(segmentCount)
-                .join("/")
-                .replace(/&/g, "~and~") +
-            (location.search ? "&" + location.search.slice(1).replace(/&/g, "~and~") : "") +
-            location.hash
+            "/"
         );
     </script>
 </head>

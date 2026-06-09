@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Rate Limiter Setup ─────────────────────────────────────────────────────
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
 
 @asynccontextmanager
@@ -105,6 +106,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
+        # Cache-Control for GET endpoints (CDN and browser caching)
+        if request.method == "GET" and response.status_code == 200:
+            path = request.url.path
+            if "/teams" in path or "/seasons" in path:
+                response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=600"
+            elif "/health" in path:
+                response.headers["Cache-Control"] = "no-store"
+            else:
+                response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
         return response
 
 
@@ -136,6 +146,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# GZip responses > 500 bytes (significant bandwidth savings for JSON payloads)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 # ─── Register Route Modules ────────────────────────────────────────────────

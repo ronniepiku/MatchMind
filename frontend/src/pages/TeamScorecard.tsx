@@ -39,8 +39,10 @@ export default function TeamScorecard() {
         refetch,
     } = useQuery({
         queryKey: ["team-scorecard", teamId, seasonId],
-        queryFn: () => fetchTeamScorecard(teamId!, seasonId!),
+        queryFn: ({ signal }) => fetchTeamScorecard(teamId!, seasonId!, signal),
         enabled: !!teamId && !!seasonId,
+        staleTime: 10 * 60 * 1000,
+        retry: 1,
     });
 
     const setPieceColumns: Column<SetPieceEfficiency>[] = [

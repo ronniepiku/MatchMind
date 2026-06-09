@@ -7,9 +7,14 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from football_analytics import response_cache
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 logger = logging.getLogger(__name__)
+_limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── Request Models ─────────────────────────────────────────────────────────
@@ -29,6 +34,11 @@ class SimulationV2Request(BaseModel):
 @router.get("/teams")
 async def list_teams() -> list[dict[str, Any]]:
     """List all available teams."""
+    cache_k = response_cache.cache_key("teams")
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     import pandas as pd
     from sqlalchemy import text
 
@@ -40,12 +50,19 @@ async def list_teams() -> list[dict[str, Any]]:
             text("SELECT DISTINCT team_id AS id, team_name AS name FROM teams ORDER BY team_name"),
             conn,
         )
-    return df.to_dict(orient="records")
+    result = df.to_dict(orient="records")
+    response_cache.put(cache_k, result, ttl_seconds=3600)
+    return result
 
 
 @router.get("/seasons")
 async def list_seasons() -> list[dict[str, Any]]:
     """List all available seasons."""
+    cache_k = response_cache.cache_key("seasons")
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     import pandas as pd
     from sqlalchemy import text
 
@@ -60,7 +77,9 @@ async def list_seasons() -> list[dict[str, Any]]:
             ),
             conn,
         )
-    return df.to_dict(orient="records")
+    result = df.to_dict(orient="records")
+    response_cache.put(cache_k, result, ttl_seconds=3600)
+    return result
 
 
 @router.get("/players")
@@ -69,6 +88,11 @@ async def list_players(
     season_id: int = Query(...),
 ) -> list[dict[str, Any]]:
     """List players for a team/season combination."""
+    cache_k = response_cache.cache_key("players", team_id=team_id, season_id=season_id)
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     import pandas as pd
     from sqlalchemy import text
 
@@ -91,7 +115,9 @@ async def list_players(
             conn,
             params={"team_id": team_id, "season_id": season_id},
         )
-    return df.to_dict(orient="records")
+    result = df.to_dict(orient="records")
+    response_cache.put(cache_k, result, ttl_seconds=1800)
+    return result
 
 
 @router.get("/matches")
@@ -100,6 +126,11 @@ async def list_matches(
     season_id: int = Query(...),
 ) -> list[dict[str, Any]]:
     """List matches for a team/season combination."""
+    cache_k = response_cache.cache_key("matches", team_id=team_id, season_id=season_id)
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     import pandas as pd
     from sqlalchemy import text
 
@@ -127,7 +158,9 @@ async def list_matches(
             conn,
             params={"team_id": team_id, "season_id": season_id},
         )
-    return df.to_dict(orient="records")
+    result = df.to_dict(orient="records")
+    response_cache.put(cache_k, result, ttl_seconds=1800)
+    return result
 
 
 @router.get("/data-availability")
@@ -160,11 +193,18 @@ async def check_data_availability(
 
 
 @router.get("/opponent/report")
+@_limiter.limit("15/minute")
 async def get_opponent_report(
+    request: Request,
     team_id: int = Query(...),
     season_id: int = Query(...),
 ) -> dict[str, Any]:
     """Generate opponent scouting report."""
+    cache_k = response_cache.cache_key("opponent_report", team_id=team_id, season_id=season_id)
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     from sqlalchemy import text as _text
 
     from football_analytics.analysis.opponent_profile import build_opponent_report
@@ -234,12 +274,14 @@ async def get_opponent_report(
                 }
             )
 
-    return {
+    result = {
         "team_name": team_name,
         "attack_patterns": attack_patterns,
         "defensive_shape": defensive_shape,
         "key_players": key_players,
     }
+    response_cache.put(cache_k, result, ttl_seconds=600)
+    return result
 
 
 # ─── Player Performance ────────────────────────────────────────────────────
@@ -251,6 +293,11 @@ async def get_player_summary(
     season_id: int = Query(...),
 ) -> dict[str, Any]:
     """Get player season summary statistics."""
+    cache_k = response_cache.cache_key("player_summary", player_id=player_id, season_id=season_id)
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     from football_analytics.analysis.player_performance import get_player_season_summary
     from football_analytics.db import get_engine as _get_engine
 
@@ -266,7 +313,7 @@ async def get_player_summary(
     total_xa = float(row.get("total_xa", 0) or 0)
     minutes = appearances * 90
 
-    return {
+    result = {
         "matches_played": appearances,
         "minutes": minutes,
         "goals": int(row.get("goals", 0)),
@@ -281,6 +328,8 @@ async def get_player_summary(
         "interceptions": int(row.get("interceptions", 0)),
         "pressures": int(row.get("pressures", 0)),
     }
+    response_cache.put(cache_k, result, ttl_seconds=600)
+    return result
 
 
 @router.get("/player/rolling-form")
@@ -390,11 +439,18 @@ async def get_squad_comparison(
 
 
 @router.get("/team/scorecard")
+@_limiter.limit("10/minute")
 async def get_team_scorecard(
+    request: Request,
     team_id: int = Query(...),
     season_id: int = Query(...),
 ) -> dict[str, Any]:
     """Generate comprehensive team scorecard."""
+    cache_k = response_cache.cache_key("team_scorecard", team_id=team_id, season_id=season_id)
+    cached = response_cache.get(cache_k)
+    if cached is not None:
+        return cached
+
     import pandas as pd
     from sqlalchemy import text
 
@@ -417,7 +473,12 @@ async def get_team_scorecard(
     with engine.connect() as conn:
         events_df = pd.read_sql(
             text("""
-                SELECT e.*
+                SELECT e.match_id, e.team_id, e.player_id, e.event_type,
+                       e.minute, e.second, e.location_x, e.location_y,
+                       e.end_location_x, e.end_location_y,
+                       e.pass_outcome, e.pass_length, e.play_pattern,
+                       e.xg, e.shot_outcome, e.possession,
+                       e.under_pressure, e.key_pass
                 FROM events e
                 JOIN matches m ON e.match_id = m.match_id
                 WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
@@ -511,13 +572,15 @@ async def get_team_scorecard(
                     }
                 )
 
-    return {
+    result = {
         "kpis": kpis,
         "possession_profile": possession_profile,
         "pressing_intensity": pressing_data,
         "transitions": transition_metrics,
         "set_pieces": set_pieces_list,
     }
+    response_cache.put(cache_k, result, ttl_seconds=900)
+    return result
 
 
 # ─── Match Analysis ────────────────────────────────────────────────────────
