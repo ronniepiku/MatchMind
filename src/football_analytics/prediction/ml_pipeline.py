@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import pickle
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -621,7 +621,7 @@ class MLMatchPredictor:
             "label_encoder": self._label_encoder,
             "metrics": self._metrics,
             "version": ML_MODEL_VERSION,
-            "trained_at": datetime.now().isoformat(),
+            "trained_at": datetime.now(tz=timezone.utc).isoformat(),
         }
         with open(self._model_path, "wb") as f:
             pickle.dump(artifact, f)

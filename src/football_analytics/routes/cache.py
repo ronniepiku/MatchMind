@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Path
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1", tags=["system"])
@@ -30,7 +30,7 @@ def invalidate_cache_endpoint(request: CacheInvalidateRequest):
 
 
 @router.get("/system/validation/{match_id}")
-def validate_match(match_id: int):
+def validate_match(match_id: int = Path(..., gt=0)):
     """Run data validation on a specific match."""
     from football_analytics.validation import DataValidator
 

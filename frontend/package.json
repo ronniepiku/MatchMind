@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://ronaldp.github.io/MatchMind",
+  "homepage": "https://ronniepiku.github.io/MatchMind",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

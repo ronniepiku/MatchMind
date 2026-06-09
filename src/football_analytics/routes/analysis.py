@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
@@ -208,7 +208,7 @@ async def simulate_match_endpoint(request: Request, sim_req: SimulationRequest) 
 
 @router.get("/players/{player_id}/profile", response_model=PlayerProfileResponse)
 async def get_player_profile(
-    player_id: int,
+    player_id: int = Path(..., gt=0),
     season_id: int | None = Query(None, description="Filter by season"),
 ) -> PlayerProfileResponse:
     """Get player performance profile."""
@@ -258,7 +258,7 @@ async def get_player_profile(
 
 @router.get("/players/{player_id}/similar", response_model=list[SimilarPlayerResponse])
 async def get_similar_players(
-    player_id: int,
+    player_id: int = Path(..., gt=0),
     season_id: int = Query(106, description="Season to compute vectors from"),
     top_n: int = Query(10, ge=1, le=50, description="Number of similar players"),
 ) -> list[SimilarPlayerResponse]:
@@ -298,7 +298,7 @@ async def get_similar_players(
 
 @router.get("/players/{player_id}/development", response_model=DevelopmentResponse)
 async def get_player_development(
-    player_id: int,
+    player_id: int = Path(..., gt=0),
     position_group: str = Query("midfielder", description="Position group for metric selection"),
 ) -> DevelopmentResponse:
     """Get player development trajectory across seasons."""

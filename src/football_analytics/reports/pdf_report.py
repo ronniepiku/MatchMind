@@ -19,7 +19,7 @@ from __future__ import annotations
 import base64
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -172,7 +172,7 @@ def generate_match_report(
             if not shots.empty
             else []
         ),
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "generated_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
     }
 
     # Render and save
@@ -223,7 +223,7 @@ def generate_opponent_report(
         "attack_patterns": report["attack_patterns"].to_dict("records"),
         "defensive_shape": report["defensive_shape"].to_dict("records"),
         "key_players": report["key_players"].to_dict("records"),
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "generated_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
     }
 
     html = _render_template("opponent_report.html", context)
@@ -274,7 +274,7 @@ def generate_player_report(
         "season_id": season_id,
         "summary": summary.to_dict("records")[0] if not summary.empty else {},
         "rolling_data": rolling.to_dict("records") if not rolling.empty else [],
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "generated_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
     }
 
     html = _render_template("player_report.html", context)

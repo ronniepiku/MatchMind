@@ -61,7 +61,7 @@ def get_weekly_briefing(
         return result
     except Exception as exc:
         logger.exception("Weekly briefing generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/executive/player-assessment")
@@ -80,8 +80,9 @@ def get_player_assessment(request: PlayerAssessmentRequest) -> dict[str, Any]:
             k["rag"] = k["rag"].value if hasattr(k.get("rag"), "value") else k["rag"]
             k["trend"] = k["trend"].value if hasattr(k.get("trend"), "value") else k["trend"]
         return result
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Player assessment generation failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/executive/competition-outlook")
@@ -101,8 +102,9 @@ def get_competition_outlook(request: CompetitionOutlookRequest) -> dict[str, Any
         result = asdict(outlook)
         result["form_rag"] = outlook.form_rag.value
         return result
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Competition outlook generation failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/executive/post-match-summary")
@@ -123,8 +125,9 @@ def get_post_match_executive_summary(request: PostMatchSummaryRequest) -> dict[s
         return result
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Post-match summary generation failed")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ─── Ad-Hoc Analysis Endpoints ─────────────────────────────────────────────
@@ -140,8 +143,9 @@ def list_analysis_queries(category: str | None = Query(None)) -> dict[str, Any]:
         queries = library.list_queries(category=category)
         categories = library.get_categories()
         return {"categories": categories, "queries": queries, "count": len(queries)}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        logger.exception("Failed to list analysis queries")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/analysis/query")
@@ -162,4 +166,4 @@ def execute_analysis_query(request: QueryExecutionRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         logger.exception("Query execution failed: %s", request.query_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
