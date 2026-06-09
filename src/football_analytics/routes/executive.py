@@ -59,7 +59,7 @@ def get_weekly_briefing(
             m["rag"] = m["rag"].value if hasattr(m.get("rag"), "value") else m["rag"]
             m["trend"] = m["trend"].value if hasattr(m.get("trend"), "value") else m["trend"]
         return result
-    except Exception as exc:
+    except Exception:
         logger.exception("Weekly briefing generation failed")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -164,6 +164,6 @@ def execute_analysis_query(request: QueryExecutionRequest) -> dict[str, Any]:
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Query execution failed: %s", request.query_id)
         raise HTTPException(status_code=500, detail="Internal server error")
