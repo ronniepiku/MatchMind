@@ -114,7 +114,7 @@ export interface TeamKPI {
 }
 
 export interface PossessionProfile {
-    style: string;
+    name: string;
     percentage: number;
 }
 

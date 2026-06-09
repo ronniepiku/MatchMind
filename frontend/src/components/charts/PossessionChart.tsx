@@ -48,7 +48,7 @@ export default function PossessionChart({
                             innerRadius={size * 0.28}
                             outerRadius={size * 0.42}
                             dataKey="percentage"
-                            nameKey="style"
+                            nameKey="name"
                             paddingAngle={2}
                             strokeWidth={0}
                             isAnimationActive={false}
@@ -72,7 +72,7 @@ export default function PossessionChart({
 
             <div className="space-y-2">
                 {data.map((item, idx) => (
-                    <div key={item.style} className="flex items-center gap-2">
+                    <div key={item.name} className="flex items-center gap-2">
                         <div
                             className="h-3 w-3 rounded-sm shrink-0"
                             style={{ backgroundColor: COLORS[idx % COLORS.length] }}
@@ -81,7 +81,7 @@ export default function PossessionChart({
                             <span className="text-sm font-medium text-[var(--text-primary)] tabular-nums">
                                 {(item.percentage ?? 0).toFixed(1)}%
                             </span>
-                            <span className="text-xs text-[var(--text-muted)]">{item.style}</span>
+                            <span className="text-xs text-[var(--text-muted)]">{item.name}</span>
                         </div>
                     </div>
                 ))}
