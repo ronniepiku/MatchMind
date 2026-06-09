@@ -187,43 +187,52 @@ export default function TeamScorecard() {
 
                         {/* Pressing Intensity */}
                         <Card title="Pressing Intensity" subtitle="Pressures per 90 by pitch zone">
-                            <ResponsiveContainer width="100%" height={240}>
-                                <BarChart
-                                    data={scorecard.pressing_intensity}
-                                    margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
-                                >
-                                    <CartesianGrid
-                                        strokeDasharray="3 3"
-                                        stroke="var(--border-color)"
-                                        strokeOpacity={0.4}
-                                    />
-                                    <XAxis
-                                        dataKey="zone"
-                                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                                        axisLine={{ stroke: "var(--border-color)" }}
-                                        tickLine={false}
-                                    />
-                                    <YAxis
-                                        tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-                                        axisLine={{ stroke: "var(--border-color)" }}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "var(--bg-card)",
-                                            border: "1px solid var(--border-color)",
-                                            borderRadius: "8px",
-                                            fontSize: "12px",
-                                        }}
-                                    />
-                                    <Bar
-                                        dataKey="pressures_per_90"
-                                        fill="var(--color-chart-3)"
-                                        radius={[4, 4, 0, 0]}
-                                        name="Pressures/90"
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {scorecard.pressing_intensity.length > 0 ? (
+                                <div style={{ width: "100%", height: 240 }}>
+                                    <ResponsiveContainer width="100%" height={240}>
+                                        <BarChart
+                                            data={scorecard.pressing_intensity}
+                                            margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                                        >
+                                            <CartesianGrid
+                                                strokeDasharray="3 3"
+                                                stroke="var(--border-color)"
+                                                strokeOpacity={0.4}
+                                            />
+                                            <XAxis
+                                                dataKey="zone"
+                                                tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                                                axisLine={{ stroke: "var(--border-color)" }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                                                axisLine={{ stroke: "var(--border-color)" }}
+                                                tickLine={false}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: "var(--bg-card)",
+                                                    border: "1px solid var(--border-color)",
+                                                    borderRadius: "8px",
+                                                    fontSize: "12px",
+                                                }}
+                                            />
+                                            <Bar
+                                                dataKey="pressures_per_90"
+                                                fill="var(--color-chart-3)"
+                                                radius={[4, 4, 0, 0]}
+                                                name="Pressures/90"
+                                                isAnimationActive={false}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center" style={{ height: 240 }}>
+                                    <p className="text-sm text-[var(--text-muted)]">No pressing data available</p>
+                                </div>
+                            )}
                         </Card>
                     </div>
 
