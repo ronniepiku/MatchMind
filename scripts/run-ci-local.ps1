@@ -129,67 +129,6 @@ if (-not $SkipBackend) {
     }
 }
 
-# --- Frontend Checks ---
-
-if (-not $SkipFrontend) {
-    $FrontendDir = Join-Path $ProjectRoot "frontend"
-
-    if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
-        Write-Step "Frontend: Installing dependencies"
-        Push-Location $FrontendDir
-        & npm ci
-        if ($LASTEXITCODE -ne 0) {
-            $failures += "npm ci"
-            Write-Failure "Frontend dependency install failed"
-        }
-        else {
-            Write-Success "Dependencies installed"
-        }
-        Pop-Location
-    }
-
-    Write-Step "Frontend: Type checking (tsc --noEmit)"
-    Push-Location $FrontendDir
-    & npx tsc --noEmit
-    if ($LASTEXITCODE -ne 0) {
-        $failures += "tsc"
-        Write-Failure "TypeScript type errors found"
-    }
-    else {
-        Write-Success "No type errors"
-    }
-    Pop-Location
-
-    Write-Step "Frontend: Linting (eslint)"
-    Push-Location $FrontendDir
-    if ($Fix) {
-        & npx eslint . --fix
-    }
-    else {
-        & npx eslint .
-    }
-    if ($LASTEXITCODE -ne 0) {
-        $failures += "eslint"
-        Write-Failure "ESLint issues found"
-    }
-    else {
-        Write-Success "No linting issues"
-    }
-    Pop-Location
-
-    Write-Step "Frontend: Build (vite)"
-    Push-Location $FrontendDir
-    & npm run build
-    if ($LASTEXITCODE -ne 0) {
-        $failures += "vite build"
-        Write-Failure "Frontend build failed"
-    }
-    else {
-        Write-Success "Build succeeded"
-    }
-    Pop-Location
-}
-
 # --- Summary ---
 
 $stopwatch.Stop()

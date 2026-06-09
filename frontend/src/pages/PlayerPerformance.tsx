@@ -15,6 +15,7 @@ import {
     DataTable,
     Loading,
     KPICard,
+    HelpPanel,
 } from "@/components/shared";
 import { PlayerRadar, RollingFormChart } from "@/components/charts";
 import type { Column } from "@/components/shared";
@@ -91,11 +92,21 @@ export default function PlayerPerformance() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Player Performance</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Individual analysis — season summary, rolling form, and percentile rankings
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Player Performance</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Individual analysis — season summary, rolling form, and percentile rankings
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Player Performance"
+                    sections={[
+                        { heading: "What it does", content: "Provides detailed individual player analysis including season statistics, rolling form trends, radar charts for percentile rankings, and squad comparison views." },
+                        { heading: "How it works", content: "Aggregates per-90 metrics from match event data and compares players against positional peers using percentile rankings across key performance indicators." },
+                        { heading: "How to use", content: "Select a team, season, and player. The dashboard shows their season summary, a rolling 5-match form chart, a radar comparing them to positional averages, and where they rank in the squad." },
+                    ]}
+                />
             </div>
 
             {/* Filters */}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTeams, fetchSeasons, fetchOpponentReport } from "@/api/endpoints";
-import { Card, Select, Button, DataTable, Loading, ErrorState } from "@/components/shared";
+import { Card, Select, Button, DataTable, Loading, ErrorState, HelpPanel } from "@/components/shared";
 import { DefensiveShapeChart } from "@/components/charts";
 import { Badge } from "@/components/shared";
 import type { Column } from "@/components/shared";
@@ -86,11 +86,21 @@ export default function OpponentProfile() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Opponent Profile</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Pre-match scouting report — attack patterns, defensive structure, and key threats
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Opponent Profile</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Pre-match scouting report — attack patterns, defensive structure, and key threats
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Opponent Profile"
+                    sections={[
+                        { heading: "What it does", content: "Generates a comprehensive scouting report for any opponent, breaking down their attacking patterns, defensive shape, key players, and tactical tendencies." },
+                        { heading: "How it works", content: "Analyses historical match data using StatsBomb events to identify recurring patterns in build-up play, pressing triggers, set-piece routines, and player positioning." },
+                        { heading: "How to use", content: "Select an opponent team and season, then click Generate Report. The report includes attack heatmaps, defensive structure diagrams, and a summary of key threats to prepare for." },
+                    ]}
+                />
             </div>
 
             {/* Filters */}

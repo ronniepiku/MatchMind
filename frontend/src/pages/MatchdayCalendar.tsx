@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, KPICard, Button, ErrorState, Badge } from "@/components/shared";
+import { Card, KPICard, Button, ErrorState, Badge, HelpPanel } from "@/components/shared";
 import {
     fetchCalendar,
     fetchExternalFixtures,
@@ -81,6 +81,14 @@ export default function MatchdayCalendar() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <HelpPanel
+                        title="Matchday Calendar"
+                        sections={[
+                            { heading: "What it does", content: "Displays upcoming and recent fixtures across competitions, with live sync from football-data.org and the ability to store fixtures locally for matchday workflows." },
+                            { heading: "How it works", content: "Fetches fixture data from external APIs (Premier League, Champions League, World Cup) and merges it with locally stored match records. Supports status tracking through the matchday lifecycle." },
+                            { heading: "How to use", content: "Select a competition tab to view fixtures. Use Sync to DB to store fixtures locally for pre-match and post-match workflows. Filter by team to focus on specific opponents." },
+                        ]}
+                    />
                     <Button
                         size="sm"
                         variant="secondary"

@@ -9,7 +9,7 @@ import {
     fetchXgTimeline,
     fetchPressureMap,
 } from "@/api/endpoints";
-import { Card, Select, Loading } from "@/components/shared";
+import { Card, Select, Loading, HelpPanel } from "@/components/shared";
 import {
     ShotMap,
     PassingNetworkChart,
@@ -59,11 +59,21 @@ export default function MatchAnalysis() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Match Analysis</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Post-match breakdown — shot maps, passing networks, xG timelines, and pressure zones
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Match Analysis</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Post-match breakdown — shot maps, passing networks, xG timelines, and pressure zones
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Match Analysis"
+                    sections={[
+                        { heading: "What it does", content: "Provides a detailed post-match breakdown with interactive visualisations including shot maps, passing networks, expected goals timelines, and pressure heatmaps." },
+                        { heading: "How it works", content: "Processes individual match event data to generate spatial visualisations — plotting shots by location and xG, mapping pass combinations between players, and showing press intensity zones." },
+                        { heading: "How to use", content: "Select a team, season, and specific match. The page loads four visualisations: a pitch shot map, the passing network for your team, a cumulative xG timeline, and a pressure heatmap." },
+                    ]}
+                />
             </div>
 
             {/* Filters */}

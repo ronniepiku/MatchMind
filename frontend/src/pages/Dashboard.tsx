@@ -9,6 +9,9 @@ import {
     TrendingUp,
     Calendar,
     Database,
+    BrainCircuit,
+    Search,
+    HelpCircle,
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -23,7 +26,7 @@ export default function Dashboard() {
                     Performance Overview
                 </h1>
                 <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Welcome to MatchMind — your Premier League performance analytics platform
+                    Welcome to MatchMind — your football intelligence platform
                 </p>
             </div>
 
@@ -41,13 +44,25 @@ export default function Dashboard() {
                 />
                 <KPICard
                     label="Analysis Modules"
-                    value={7}
+                    value={9}
                     unit="active"
                 />
                 <KPICard
                     label="API Status"
                     value="Online"
                 />
+            </div>
+
+            {/* Help Tip */}
+            <div className="flex items-center gap-2 rounded-lg border border-accent-500/20 bg-accent-500/5 px-4 py-2.5">
+                <HelpCircle className="h-4 w-4 shrink-0 text-accent-500" />
+                <p className="text-xs text-[var(--text-secondary)]">
+                    <span className="font-medium text-[var(--text-primary)]">Tip:</span> Every tool page includes a{" "}
+                    <span className="inline-flex items-center gap-0.5 font-medium text-accent-500">
+                        <HelpCircle className="inline h-3 w-3" /> Help
+                    </span>{" "}
+                    button in the top-right corner explaining what it does and how to use it.
+                </p>
             </div>
 
             {/* Navigation Cards */}
@@ -88,11 +103,25 @@ export default function Dashboard() {
                     color="var(--color-chart-6)"
                 />
                 <NavigationCard
-                    title="Match Simulation"
-                    description="Monte Carlo match simulation with scoreline distributions, expected goals, and probability modelling"
-                    icon={Calendar}
-                    href="/simulation"
+                    title="Simulations & Predictions"
+                    description="Monte Carlo match simulation and ML-powered predictions with scoreline distributions, team ratings, and tournament modelling"
+                    icon={BrainCircuit}
+                    href="/predictions"
                     color="var(--color-chart-7)"
+                />
+                <NavigationCard
+                    title="Matchday Calendar"
+                    description="Fixture schedule with competition sync, pre-match packs, post-match analysis triggers, and status lifecycle tracking"
+                    icon={Calendar}
+                    href="/matchday"
+                    color="var(--color-chart-1)"
+                />
+                <NavigationCard
+                    title="Analysis Workbench"
+                    description="Ad-hoc query builder with 21 parameterised queries across 8 categories — run custom analysis on demand"
+                    icon={Search}
+                    href="/analysis"
+                    color="var(--color-chart-2)"
                 />
             </div>
 
@@ -114,9 +143,10 @@ export default function Dashboard() {
                             Available Analysis
                         </h4>
                         <ul className="space-y-2">
-                            <StatusItem label="xG Model (Logistic Regression)" status="ready" />
+                            <StatusItem label="xG Model (Logistic + Gradient Boosting)" status="ready" />
                             <StatusItem label="Possession Chain Analysis" status="ready" />
                             <StatusItem label="Monte Carlo Simulation" status="ready" />
+                            <StatusItem label="ML Match Predictor" status="ready" />
                             <StatusItem label="Player Similarity Engine" status="ready" />
                         </ul>
                     </div>
