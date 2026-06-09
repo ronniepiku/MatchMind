@@ -1,7 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { fetchTeams, fetchSeasons } from "@/api/endpoints";
-import { Card, KPICard } from "@/components/shared";
+import { Card } from "@/components/shared";
 import {
     Activity,
     Target,
@@ -15,8 +13,6 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
-    const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: fetchTeams });
-    const { data: seasons } = useQuery({ queryKey: ["seasons"], queryFn: fetchSeasons });
 
     return (
         <div className="space-y-6">
@@ -28,29 +24,6 @@ export default function Dashboard() {
                 <p className="mt-1 text-sm text-[var(--text-muted)]">
                     Welcome to MatchMind — your football intelligence platform
                 </p>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <KPICard
-                    label="Teams Available"
-                    value={teams?.length ?? "-"}
-                    unit="teams"
-                />
-                <KPICard
-                    label="Seasons Loaded"
-                    value={seasons?.length ?? "-"}
-                    unit="seasons"
-                />
-                <KPICard
-                    label="Analysis Modules"
-                    value={9}
-                    unit="active"
-                />
-                <KPICard
-                    label="API Status"
-                    value="Online"
-                />
             </div>
 
             {/* Help Tip */}
@@ -67,6 +40,27 @@ export default function Dashboard() {
 
             {/* Navigation Cards */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <NavigationCard
+                    title="Simulations & Predictions"
+                    description="Monte Carlo match simulation and ML-powered predictions with scoreline distributions, team ratings, and tournament modelling"
+                    icon={BrainCircuit}
+                    href="/predictions"
+                    color="var(--color-chart-7)"
+                />
+                <NavigationCard
+                    title="Matchday Calendar"
+                    description="Fixture schedule with competition sync, pre-match packs, post-match analysis triggers, and status lifecycle tracking"
+                    icon={Calendar}
+                    href="/matchday"
+                    color="var(--color-chart-1)"
+                />
+                <NavigationCard
+                    title="Analysis Workbench"
+                    description="Ad-hoc query builder with 21 parameterised queries across 8 categories — run custom analysis on demand"
+                    icon={Search}
+                    href="/analysis"
+                    color="var(--color-chart-2)"
+                />
                 <NavigationCard
                     title="Opponent Profile"
                     description="Pre-match scouting reports with attack patterns, defensive shape analysis, and key player identification"
@@ -102,27 +96,6 @@ export default function Dashboard() {
                     href="/comparison"
                     color="var(--color-chart-6)"
                 />
-                <NavigationCard
-                    title="Simulations & Predictions"
-                    description="Monte Carlo match simulation and ML-powered predictions with scoreline distributions, team ratings, and tournament modelling"
-                    icon={BrainCircuit}
-                    href="/predictions"
-                    color="var(--color-chart-7)"
-                />
-                <NavigationCard
-                    title="Matchday Calendar"
-                    description="Fixture schedule with competition sync, pre-match packs, post-match analysis triggers, and status lifecycle tracking"
-                    icon={Calendar}
-                    href="/matchday"
-                    color="var(--color-chart-1)"
-                />
-                <NavigationCard
-                    title="Analysis Workbench"
-                    description="Ad-hoc query builder with 21 parameterised queries across 8 categories — run custom analysis on demand"
-                    icon={Search}
-                    href="/analysis"
-                    color="var(--color-chart-2)"
-                />
             </div>
 
             {/* Recent Activity / Data Status */}
@@ -150,6 +123,33 @@ export default function Dashboard() {
                             <StatusItem label="Player Similarity Engine" status="ready" />
                         </ul>
                     </div>
+                </div>
+            </Card>
+
+            {/* Terms of Service */}
+            <Card title="Terms of Service" subtitle="Important legal information">
+                <div className="space-y-4 text-sm text-[var(--text-secondary)]">
+                    <p>
+                        MatchMind is a football analytics platform designed <strong>exclusively for educational, informational, and entertainment purposes</strong>. By using this application, you agree to the following:
+                    </p>
+                    <ul className="list-disc space-y-2 pl-5">
+                        <li>All predictions, simulations, and statistical outputs are for <strong>educational and entertainment purposes only</strong> and do not constitute gambling or betting advice.</li>
+                        <li>You must <strong>not</strong> rely on this application's outputs for gambling or betting decisions.</li>
+                        <li>The developers accept <strong>no responsibility</strong> for any financial losses incurred by users who use outputs for gambling purposes.</li>
+                        <li>You must be at least 18 years of age to use this application.</li>
+                        <li>The application is provided "as is" without warranties of any kind.</li>
+                    </ul>
+                    <p className="text-xs text-[var(--text-muted)]">
+                        For the full terms, see the{" "}
+                        <a
+                            href="https://github.com/ronniepiku/MatchMind/blob/main/TERMS_OF_SERVICE.md"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent-500 underline hover:text-accent-400"
+                        >
+                            Terms of Service
+                        </a>.
+                    </p>
                 </div>
             </Card>
         </div>
