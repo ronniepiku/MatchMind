@@ -81,11 +81,11 @@ export const fetchSquadComparison = (teamId: number, seasonId: number) =>
     });
 
 // ─── Team Scorecard ───────────────────────────────────────
-export const fetchTeamScorecard = (teamId: number, seasonId: number) =>
+export const fetchTeamScorecard = (teamId: number, seasonId: number, signal?: AbortSignal) =>
     api.get<TeamScorecard>("/team/scorecard", {
         team_id: teamId,
         season_id: seasonId,
-    });
+    }, signal);
 
 // ─── Match Analysis ───────────────────────────────────────
 export const fetchShotMap = (matchId: number) =>

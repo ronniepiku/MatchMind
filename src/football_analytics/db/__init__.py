@@ -24,8 +24,8 @@ def get_engine(echo: bool = False) -> Engine:
     if _engine is not None:
         return _engine
 
-    pool_size = int(os.getenv("DB_POOL_SIZE", "10"))
-    max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+    pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 
     _engine = create_engine(
         config.db.url,
@@ -33,7 +33,9 @@ def get_engine(echo: bool = False) -> Engine:
         pool_size=pool_size,
         max_overflow=max_overflow,
         pool_pre_ping=True,
-        pool_recycle=3600,
+        pool_recycle=1800,
+        pool_timeout=20,
+        connect_args={"options": "-c statement_timeout=30000"},
     )
     return _engine
 

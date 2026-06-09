@@ -66,8 +66,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 }
 
 export const api = {
-    get: <T>(endpoint: string, params?: Record<string, string | number | undefined>) =>
-        request<T>(endpoint, { params }),
+    get: <T>(endpoint: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal) =>
+        request<T>(endpoint, { params, signal }),
 
     post: <T>(endpoint: string, body: unknown) =>
         request<T>(endpoint, { method: "POST", body }),

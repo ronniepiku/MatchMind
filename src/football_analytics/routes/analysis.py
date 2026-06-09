@@ -402,7 +402,11 @@ async def get_team_set_pieces(
 
     query = text(
         """
-        SELECT e.*, p.player_name
+        SELECT e.match_id, e.team_id, e.player_id, e.event_type,
+               e.minute, e.second, e.location_x, e.location_y,
+               e.end_location_x, e.end_location_y, e.play_pattern,
+               e.possession, e.xg, e.shot_outcome, e.pass_outcome,
+               p.player_name
         FROM events e
         LEFT JOIN players p ON e.player_id = p.player_id
         JOIN matches m ON e.match_id = m.match_id
@@ -457,7 +461,12 @@ async def get_possession_profile(
 
     query = text(
         """
-        SELECT e.*
+        SELECT e.match_id, e.team_id, e.player_id, e.event_type,
+               e.minute, e.second, e.location_x, e.location_y,
+               e.end_location_x, e.end_location_y,
+               e.pass_outcome, e.pass_length, e.play_pattern,
+               e.xg, e.shot_outcome, e.possession,
+               e.under_pressure, e.key_pass
         FROM events e
         JOIN matches m ON e.match_id = m.match_id
         WHERE (m.home_team_id = :team_id OR m.away_team_id = :team_id)
