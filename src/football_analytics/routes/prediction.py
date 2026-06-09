@@ -11,6 +11,10 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
 logger = logging.getLogger(__name__)
 
+LEGAL_DISCLAIMER = (
+    "For educational and entertainment purposes only. Not gambling advice. Do not use for betting decisions."
+)
+
 
 # ─── Request Models ─────────────────────────────────────────────────────────
 
@@ -24,7 +28,7 @@ class MatchPredictionRequest(BaseModel):
 
 
 class TournamentSimulationRequest(BaseModel):
-    competition_id: int = Field(..., description="Competition ID")
+    competition_id: int | None = Field(None, description="Competition ID")
     format_type: str = Field(..., description="Format: 'league', 'groups_knockout', 'knockout'")
     groups: list[dict[str, Any]] | None = Field(None, description="Group configurations")
     team_ids: list[int] | None = Field(None, description="Team IDs (for league/knockout)")
@@ -110,6 +114,7 @@ async def predict_match(request: Request, pred_req: MatchPredictionRequest) -> d
             else None
         ),
         "model_version": prediction.model_version,
+        "disclaimer": LEGAL_DISCLAIMER,
     }
 
 
@@ -281,6 +286,7 @@ async def simulate_tournament(request: Request, tourn_req: TournamentSimulationR
         "format_type": result.format_type,
         "n_simulations": result.n_simulations,
         "team_results": team_results,
+        "disclaimer": LEGAL_DISCLAIMER,
     }
 
 
@@ -321,6 +327,7 @@ async def ml_predict_match(request: Request, pred_req: MLPredictionRequest) -> d
         "markets": prediction.markets if hasattr(prediction, "markets") else {},
         "feature_contributions": prediction.feature_contributions,
         "model_version": prediction.model_version,
+        "disclaimer": LEGAL_DISCLAIMER,
     }
 
 

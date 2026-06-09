@@ -9,7 +9,7 @@ MatchMind is a **production-grade football intelligence platform** designed for 
 ## Key Features
 
 ### Intelligence Layer
-- **Match prediction engine**: Dixon-Coles model with team ratings, tactical matchup analysis, and tournament simulation
+- **Match prediction engine**: Dixon-Coles model with team ratings, tactical matchup analysis, tournament simulation, and gradient-boosted ML predictions
 - **Matchday operations**: Fixture calendar with status lifecycle, pre-match packs, post-match analysis, structured reviews
 - **Executive reporting**: RAG traffic-light briefings, player assessments, competition outlooks (1-page max, plain language)
 - **Ad-hoc analysis toolkit**: 21 parameterised SQL queries across 8 categories, accessible via API or React workbench
@@ -24,7 +24,7 @@ MatchMind is a **production-grade football intelligence platform** designed for 
 - **Spatial dominance**: Voronoi tessellation, passing lanes, defensive coverage gaps
 
 ### Infrastructure
-- **React dashboard**: 10 pages with D3 pitch visualisations, dark/light theme, Tailwind CSS
+- **React dashboard**: 9 tool pages with D3 pitch visualisations, dark/light theme, Tailwind CSS
 - **FastAPI REST layer**: Modular route architecture, OpenAPI docs, CORS, cache endpoints, data validation
 - **Database migrations**: Alembic with environment-aware config (local Postgres or Railway `DATABASE_URL`)
 - **Data quality pipeline**: 7-check validation gate with audit trail
@@ -211,8 +211,8 @@ A custom React + TypeScript analytics dashboard built for performance analysts, 
 
 ### Pages
 
-1. **Dashboard** — Overview with data availability status and navigation to all modules
-2. **Predictions** — Match outcome predictor, team ratings table, tournament simulation
+1. **Dashboard** — Overview with data availability status, navigation to all modules, and help tip for new users
+2. **Predictions** — Match outcome predictor (Monte Carlo + ML), team ratings table, tournament simulation
 3. **Matchday Calendar** — Fixture timeline with status lifecycle, pre-match pack generation
 4. **Analysis Workbench** — Category-filtered query selector, parameter forms, results with CSV export
 5. **Opponent Profile** — Scouting report with attack patterns, defensive shape, key player threats
@@ -220,12 +220,12 @@ A custom React + TypeScript analytics dashboard built for performance analysts, 
 7. **Team Scorecard** — KPI cards, possession style breakdown, defensive zone analysis, set-piece efficiency
 8. **Match Analysis** — Shot map (D3 pitch), xG timeline, passing network, pressure heatmap (canvas + KDE)
 9. **Player Comparison** — Side-by-side similarity search for recruitment shortlisting
-10. **Simulation** — Monte Carlo match outcome prediction with scoreline distribution chart
 
 ### Features
 
 - Dark/light theme with Premier League-inspired colour palette
 - Responsive sidebar navigation with collapsible menu
+- In-page help panels on every tool page (click the Help icon for usage guidance)
 - Custom SVG football pitch rendering (StatsBomb 120×80 coordinates)
 - Canvas-based pressure heatmaps with kernel density estimation
 - Sortable data tables with per-90 metrics
@@ -272,14 +272,6 @@ Key wins:
 - **Sub-second frontend** — TanStack Query with 5-min staleTime, code splitting, lazy routes
 - **Vectorised Python** — pandas operations replace row-level loops throughout
 - **Connection pooling** — Reuse connections across API endpoints
-
-## Video Integration
-
-See [docs/VIDEO_INTEGRATION.md](docs/VIDEO_INTEGRATION.md) for the full guide on:
-- Synchronising StatsBomb event timestamps with broadcast video
-- Extracting tactical clips with FFmpeg
-- Tagging clips with analytical context
-- Integrating clips into the dashboard
 
 ## Custom xG Model
 
@@ -419,3 +411,7 @@ Default dataset: **FIFA World Cup 2022** (competition_id=43, season_id=106).
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## Disclaimer
+
+MatchMind is for **educational and entertainment purposes only**. Predictions, simulations, and statistical outputs do not constitute gambling advice or betting recommendations. See [TERMS_OF_SERVICE.md](./TERMS_OF_SERVICE.md) for full terms.

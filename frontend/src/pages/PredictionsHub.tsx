@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTeams, fetchSeasons, runSimulation } from "@/api/endpoints";
-import { Card, Select, Button, Loading, ErrorState, KPICard, Badge } from "@/components/shared";
+import { Card, Select, Button, Loading, ErrorState, KPICard, Badge, DisclaimerBanner, HelpPanel } from "@/components/shared";
 import { SimulationChart } from "@/components/charts";
 import { api } from "@/api";
 import type { SimulationResult, TeamRating } from "@/api/types";
@@ -35,12 +35,24 @@ export default function SimulationsPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Simulations</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Match outcome simulation combining Monte Carlo and ML models
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Simulations</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Match outcome simulation combining Monte Carlo and ML models
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Simulations & Predictions"
+                    sections={[
+                        { heading: "What it does", content: "Runs match outcome simulations using Monte Carlo methods and a trained ML model. Also provides team strength ratings and full tournament simulations." },
+                        { heading: "How it works", content: "Monte Carlo runs 10,000 match iterations using team ratings. The ML model uses gradient-boosted features (form, xG history, head-to-head) to predict outcomes. Both models’ results are shown side by side." },
+                        { heading: "How to use", content: "In Match Simulation: select two teams and a season, then click Run Simulation. The Ratings tab shows computed team strengths. The Tournament tab lets you simulate entire competitions." },
+                    ]}
+                />
             </div>
+
+            <DisclaimerBanner />
 
             <div className="flex gap-2 border-b border-[var(--border-color)] pb-2">
                 {(
@@ -305,8 +317,8 @@ function RatingsTab() {
         setLoading(true);
         setError(null);
         try {
-            const data = await api.get<{ ratings: TeamRating[] }>("/predict/ratings", { season_id: seasonId });
-            setRatings(data.ratings || []);
+            const data = await api.get<TeamRating[]>("/predict/ratings", { season_id: seasonId });
+            setRatings(data || []);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to load ratings");
         } finally {

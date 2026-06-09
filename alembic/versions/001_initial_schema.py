@@ -21,19 +21,14 @@ depends_on = None
 def upgrade() -> None:
     """Apply full schema from schema.sql plus v0.5.0 additions."""
     # Execute the base schema.sql
-    schema_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "football_analytics"
-        / "db"
-        / "schema.sql"
-    )
+    schema_path = Path(__file__).resolve().parents[2] / "src" / "football_analytics" / "db" / "schema.sql"
     if schema_path.exists():
         sql = schema_path.read_text(encoding="utf-8")
         op.execute(sa.text(sql))
 
     # v0.5.0 additions: competition_registry, matchday_events, data_quality_log
-    op.execute(sa.text("""
+    op.execute(
+        sa.text("""
         CREATE TABLE IF NOT EXISTS competition_registry (
             id                  SERIAL PRIMARY KEY,
             competition_id      INTEGER NOT NULL,
@@ -52,9 +47,11 @@ def upgrade() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_registry_active
             ON competition_registry (is_active, priority);
-    """))
+    """)
+    )
 
-    op.execute(sa.text("""
+    op.execute(
+        sa.text("""
         CREATE TABLE IF NOT EXISTS matchday_events (
             id                  SERIAL PRIMARY KEY,
             fixture_id          INTEGER REFERENCES fixtures(fixture_id),
@@ -66,9 +63,11 @@ def upgrade() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_matchday_events_fixture
             ON matchday_events (fixture_id, event_type);
-    """))
+    """)
+    )
 
-    op.execute(sa.text("""
+    op.execute(
+        sa.text("""
         CREATE TABLE IF NOT EXISTS data_quality_log (
             id                  SERIAL PRIMARY KEY,
             source              VARCHAR(100) NOT NULL,
@@ -86,10 +85,12 @@ def upgrade() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_quality_log_severity
             ON data_quality_log (severity, created_at DESC);
-    """))
+    """)
+    )
 
     # Cache metadata table for HTTP-level caching
-    op.execute(sa.text("""
+    op.execute(
+        sa.text("""
         CREATE TABLE IF NOT EXISTS cache_metadata (
             cache_key           VARCHAR(200) PRIMARY KEY,
             endpoint            VARCHAR(200) NOT NULL,
@@ -101,7 +102,8 @@ def upgrade() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_cache_metadata_expiry
             ON cache_metadata (expires_at);
-    """))
+    """)
+    )
 
 
 def downgrade() -> None:

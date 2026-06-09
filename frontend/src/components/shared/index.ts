@@ -7,4 +7,6 @@ export { default as Badge } from "./Badge";
 export { default as Button } from "./Button";
 export { default as ErrorState } from "./ErrorState";
 export { default as ErrorBoundary } from "./ErrorBoundary";
+export { default as DisclaimerBanner } from "./DisclaimerBanner";
+export { default as HelpPanel } from "./HelpPanel";
 export type { Column } from "./DataTable";

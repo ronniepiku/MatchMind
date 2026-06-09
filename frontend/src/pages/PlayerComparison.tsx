@@ -7,7 +7,7 @@ import {
     fetchSimilarPlayers,
     fetchPlayerRadar,
 } from "@/api/endpoints";
-import { Card, Select, DataTable, Loading, Badge } from "@/components/shared";
+import { Card, Select, DataTable, Loading, Badge, HelpPanel } from "@/components/shared";
 import { PlayerRadar } from "@/components/charts";
 import type { Column } from "@/components/shared";
 import type { SimilarPlayer } from "@/api/types";
@@ -65,11 +65,21 @@ export default function PlayerComparison() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Player Comparison</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Find similar players using cosine similarity across normalised per-90 performance vectors
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Player Comparison</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Find similar players using cosine similarity across normalised per-90 performance vectors
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Player Comparison"
+                    sections={[
+                        { heading: "What it does", content: "Identifies the most similar players to a selected target using advanced similarity algorithms, useful for recruitment shortlisting and tactical alternatives." },
+                        { heading: "How it works", content: "Computes cosine similarity across normalised per-90 performance vectors (goals, assists, xG, xA, progressive actions, defensive metrics) to rank the closest statistical matches." },
+                        { heading: "How to use", content: "Select a team, season, and player to compare against. The table shows the top 15 most similar players with similarity scores, and a radar chart overlays their profiles." },
+                    ]}
+                />
             </div>
 
             {/* Filters */}

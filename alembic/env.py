@@ -22,8 +22,7 @@ else:
     _pw = os.getenv("POSTGRES_PASSWORD")
     if not _pw:
         raise RuntimeError(
-            "POSTGRES_PASSWORD or DATABASE_URL must be set. "
-            "Configure in .env or export before running migrations."
+            "POSTGRES_PASSWORD or DATABASE_URL must be set. Configure in .env or export before running migrations."
         )
     _db_url = (
         f"postgresql+psycopg2://{os.getenv('POSTGRES_USER', 'analyst')}"

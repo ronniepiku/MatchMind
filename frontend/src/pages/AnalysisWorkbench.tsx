@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Button, ErrorState } from "@/components/shared";
+import { Card, Button, ErrorState, HelpPanel } from "@/components/shared";
 import { api } from "@/api";
 import { fetchTeams, fetchSeasons } from "@/api/endpoints";
 import type { QueryDefinition, QueryListResponse, QueryResult } from "@/api/types";
@@ -81,13 +81,23 @@ export default function AnalysisWorkbench() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-                    Analysis Workbench
-                </h1>
-                <p className="text-sm text-[var(--text-muted)]">
-                    Parameterised queries for ad-hoc football analysis
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+                        Analysis Workbench
+                    </h1>
+                    <p className="text-sm text-[var(--text-muted)]">
+                        Parameterised queries for ad-hoc football analysis
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Analysis Workbench"
+                    sections={[
+                        { heading: "What it does", content: "Provides a library of 21 pre-built parameterised queries across 8 categories, letting you run custom analytical queries without writing code." },
+                        { heading: "How it works", content: "Each query is a server-side SQL template with configurable parameters (team, season, threshold). Select a query, fill in the parameters, and the results are returned as structured data." },
+                        { heading: "How to use", content: "Browse queries by category on the left, select one to see its description and parameters. Fill in the dropdowns and click Execute. Results appear in a sortable table on the right." },
+                    ]}
+                />
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

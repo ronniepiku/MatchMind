@@ -10,6 +10,7 @@ import {
     ErrorState,
     KPICard,
     Badge,
+    HelpPanel,
 } from "@/components/shared";
 import { PossessionChart } from "@/components/charts";
 import type { Column } from "@/components/shared";
@@ -103,11 +104,21 @@ export default function TeamScorecard() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[var(--text-primary)]">Team Scorecard</h1>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    Comprehensive team performance metrics — possession, pressing, transitions, and set-pieces
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Team Scorecard</h1>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Comprehensive team performance metrics — possession, pressing, transitions, and set-pieces
+                    </p>
+                </div>
+                <HelpPanel
+                    title="Team Scorecard"
+                    sections={[
+                        { heading: "What it does", content: "Delivers a full performance profile for any team — covering possession style, pressing intensity, transition speed, and set-piece efficiency in one view." },
+                        { heading: "How it works", content: "Computes aggregated metrics from all matches in the selected season, benchmarked against league averages with percentile rankings for context." },
+                        { heading: "How to use", content: "Choose a team and season, then click Load Scorecard. Review the KPI cards for headline stats, the possession chart for style, and the tables for set-piece and transition breakdowns." },
+                    ]}
+                />
             </div>
 
             {/* Filters */}

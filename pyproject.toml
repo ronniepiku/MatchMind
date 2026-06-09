@@ -75,6 +75,7 @@ ignore = ["E501", "N806", "N801", "B904"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B904"]
+"notebooks/**" = ["B905"]
 
 [tool.mypy]
 python_version = "3.10"
